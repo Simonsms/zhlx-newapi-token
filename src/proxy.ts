@@ -8,6 +8,12 @@ import type { Logger } from './logger.ts';
 import { REDACTION_VERSION, redactPrompt } from './redact.ts';
 import type { ProxyWriter } from './store/writer.ts';
 import type { CaptureStatus, ProxyRequestInsert, TransportOutcome } from './store/types.ts';
+import {
+  createCaptureBudget,
+  releaseCaptureBudget,
+  reserveCaptureBudget,
+  type CaptureBudget,
+} from './metrics.ts';
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -41,6 +47,7 @@ export interface ProxyDeps {
 
 export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res: ServerResponse) => void {
   const { config, writer, logger } = deps;
+  const budget: CaptureBudget = createCaptureBudget(config.captureMaxTotalBytes);
 
   return (req, res) => {
     const parsedUrl = new URL(req.url ?? '/', 'http://internal');
@@ -60,6 +67,8 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     const chunks: Buffer[] = [];
     let capturedBytes = 0;
     let overLimit = false;
+    let budgetDenied = false;
+    let reservedBytes = 0;
     let bodyComplete = false;
     let newapiRequestId: string | null = null;
     let httpStatus: number | null = null;
@@ -96,6 +105,10 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     const finalize = (): void => {
       if (finalized) return;
       finalized = true;
+      if (reservedBytes > 0) {
+        releaseCaptureBudget(budget, reservedBytes);
+        reservedBytes = 0;
+      }
       if (!shouldRecord) return;
 
       let captureStatus: CaptureStatus;
@@ -143,6 +156,9 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
       } else if (!bodyComplete) {
         captureStatus = 'skipped';
         skipReason = 'incomplete_request_body';
+      } else if (budgetDenied) {
+        captureStatus = 'skipped';
+        skipReason = 'capture_budget_exhausted';
       } else if (overLimit) {
         captureStatus = 'skipped';
         skipReason = 'over_limit';
@@ -210,13 +226,23 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     };
 
     req.on('data', (chunk: Buffer) => {
-      if (teeEligible && !overLimit) {
-        if (capturedBytes + chunk.length > config.captureMaxBytes) {
-          overLimit = true;
-          chunks.length = 0;
-        } else {
-          chunks.push(chunk);
-          capturedBytes += chunk.length;
+      if (teeEligible && !overLimit && !budgetDenied) {
+        if (reservedBytes === 0) {
+          if (reserveCaptureBudget(budget, config.captureMaxBytes)) {
+            reservedBytes = config.captureMaxBytes;
+          } else {
+            budgetDenied = true;
+            logger.warn('capture_budget_exhausted', { proxy_request_id: proxyRequestId });
+          }
+        }
+        if (!budgetDenied) {
+          if (capturedBytes + chunk.length > config.captureMaxBytes) {
+            overLimit = true;
+            chunks.length = 0;
+          } else {
+            chunks.push(chunk);
+            capturedBytes += chunk.length;
+          }
         }
       }
       if (pausedForDrain) return;

@@ -1,3 +1,22 @@
+export interface CaptureBudget {
+  used: number;
+  readonly limit: number;
+}
+
+export function createCaptureBudget(limit: number): CaptureBudget {
+  return { used: 0, limit };
+}
+
+export function reserveCaptureBudget(budget: CaptureBudget, bytes: number): boolean {
+  if (budget.used + bytes > budget.limit) return false;
+  budget.used += bytes;
+  return true;
+}
+
+export function releaseCaptureBudget(budget: CaptureBudget, bytes: number): void {
+  budget.used = Math.max(0, budget.used - bytes);
+}
+
 export interface Metrics {
   readonly startedAt: string;
   droppedMetadata: number;

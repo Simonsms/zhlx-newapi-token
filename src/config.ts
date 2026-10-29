@@ -32,6 +32,7 @@ export interface Config {
   captureEnabled: boolean;
   captureRoutes: Set<string>;
   captureMaxBytes: number;
+  captureMaxTotalBytes: number;
   captureMaxChars: number;
   promptRetentionDays: number;
   cleanupIntervalMs: number;
@@ -161,7 +162,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxyHeaders: readBool(env, 'TRUST_PROXY_HEADERS', false),
     captureEnabled: readBool(env, 'CAPTURE_ENABLED', false),
     captureRoutes,
-    captureMaxBytes: readInt(env, 'CAPTURE_MAX_BYTES', 262144, 1024),
+    captureMaxBytes: readInt(env, 'CAPTURE_MAX_BYTES', 4_194_304, 1024),
+    captureMaxTotalBytes: readInt(env, 'CAPTURE_MAX_TOTAL_BYTES', 268_435_456, 1_048_576),
     captureMaxChars: readInt(env, 'CAPTURE_MAX_CHARS', 8000, 100),
     promptRetentionDays: readInt(env, 'PROMPT_RETENTION_DAYS', 30, 1),
     cleanupIntervalMs: readInt(env, 'CLEANUP_INTERVAL_MS', 3_600_000, 10_000),
