@@ -1,7 +1,7 @@
 import type { Config } from './config.ts';
 import type { Logger } from './logger.ts';
 import type { Metrics } from './metrics.ts';
-import { mapRawLog, NewApiError, type NewApiLogClient } from './newapi-client.ts';
+import { mapRawLog, NewApiError, type LogSource } from './newapi-client.ts';
 import type { Store } from './store/store.ts';
 import type { SyncState } from './store/types.ts';
 
@@ -16,7 +16,7 @@ export interface SyncReport {
 
 export class LogSync {
   private readonly store: Store;
-  private readonly client: NewApiLogClient | null;
+  private readonly client: LogSource | null;
   private readonly config: Config;
   private readonly metrics: Metrics;
   private readonly logger: Logger;
@@ -25,11 +25,16 @@ export class LogSync {
 
   constructor(
     store: Store,
-    client: NewApiLogClient | null,
+    client: LogSource | null,
     config: Config,
     metrics: Metrics,
     logger: Logger,
   ) {
+    if (config.deploymentId !== store.deploymentId) {
+      throw new Error(
+        `部署 ID 不一致：同步写入 ${config.deploymentId}，存储读取 ${store.deploymentId}`,
+      );
+    }
     this.store = store;
     this.client = client;
     this.config = config;

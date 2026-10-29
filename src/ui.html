@@ -111,7 +111,8 @@
       <div class="row">
         <div><label>开始时间</label><input id="from" type="datetime-local"></div>
         <div><label>结束时间</label><input id="to" type="datetime-local"></div>
-        <div><label>用户 ID</label><input id="userId" type="number" placeholder="全部" style="width:110px"></div>
+        <div><label>账号 ID</label><input id="userId" type="number" placeholder="全部" style="width:100px"></div>
+        <div><label>凭证 ID</label><input id="tokenId" type="number" placeholder="全部" style="width:100px"></div>
         <div><label>模型</label><input id="model" placeholder="全部"></div>
         <div><label>关联状态</label>
           <select id="status">
@@ -131,7 +132,8 @@
     <div class="card">
       <h2>全量原生日志用量</h2>
       <div class="stats" id="totals"></div>
-      <p class="muted" id="totalsNote" style="font-size:12px;margin:10px 0 0"></p>
+      <p class="muted" id="identityNote" style="font-size:12px;margin:10px 0 0"></p>
+      <p class="muted" id="totalsNote" style="font-size:12px;margin:6px 0 0"></p>
     </div>
 
     <div class="split">
@@ -151,8 +153,10 @@
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <h2 style="margin:0">用量分组</h2>
         <select id="groupBy">
+          <option value="identity">按人员（自动口径）</option>
           <option value="day">按天</option>
-          <option value="user">按用户</option>
+          <option value="user">按账号</option>
+          <option value="token">按凭证</option>
           <option value="model">按模型</option>
         </select>
       </div>
@@ -228,6 +232,8 @@
     if (to) params.set("to", to.toISOString());
     var userId = $("userId").value.trim();
     if (userId) params.set("user_id", userId);
+    var tokenId = $("tokenId").value.trim();
+    if (tokenId) params.set("token_id", tokenId);
     var model = $("model").value.trim();
     if (model) params.set("model", model);
     return params;
@@ -331,9 +337,15 @@
       statHtml("输入 Token", fmt(t.prompt_tokens)) +
       statHtml("输出 Token", fmt(t.completion_tokens)) +
       statHtml("网关额度", fmt(t.quota), "非供应商现金成本") +
-      statHtml("活跃用户", fmt(t.active_users), "按原生 user_id") +
+      statHtml("账号数", fmt(t.active_users)) +
+      statHtml("凭证数", fmt(t.active_tokens)) +
       statHtml("估算用量事件", fmt(t.estimated_events)) +
       statHtml("缺失用量事件", fmt(t.missing_events), "缺失不记为零");
+    var modeLabel = data.identity_mode === "token" ? "按凭证（Key）" : "按账号";
+    $("identityNote").textContent = "人员归属口径：" + modeLabel +
+      "（配置 " + data.identity_configured + "；区间内 " + data.identity_stats.distinct_users + " 个账号、" +
+      data.identity_stats.distinct_tokens + " 个凭证）。" +
+      (data.identity_mode === "token" ? "共享账号下按凭证区分人员，凭证即 key，持有者可共享。" : "");
     $("totalsNote").textContent = "有 Prompt 子集的输入 Token：" + fmt(data.captured_totals.prompt_tokens) +
       "；来源分布：" + (data.usage_sources.length ? data.usage_sources.map(function (s) { return s.source + " " + s.count; }).join("，") : "暂无数据") +
       "。额度为网关结算，不代表上游现金成本。";
@@ -381,7 +393,7 @@
     var data;
     try { data = await api("/admin/api/usage?" + query.toString()); }
     catch (e) { return; }
-    var labels = { day: "日期", user: "用户", model: "模型" };
+    var labels = { day: "日期", user: "账号", token: "凭证", model: "模型" };
     $("bucketHead").textContent = labels[data.group_by] || "分组";
     if (!data.breakdown.length) {
       $("breakdownBody").innerHTML = '<tr><td colspan="6" class="muted">暂无数据</td></tr>';
@@ -464,7 +476,7 @@
     var now = new Date();
     $("to").value = isoLocal(now);
     $("from").value = isoLocal(new Date(now.getTime() - 24 * 3600 * 1000));
-    $("userId").value = ""; $("model").value = ""; $("status").value = ""; $("q").value = "";
+    $("userId").value = ""; $("tokenId").value = ""; $("model").value = ""; $("status").value = ""; $("q").value = "";
     state.page = 1; refreshAll();
   });
   $("groupBy").addEventListener("change", loadUsage);

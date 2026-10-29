@@ -7,7 +7,7 @@ import { createProxyHandler } from './proxy.ts';
 import { AdminAuth, sendJson } from './http-helpers.ts';
 import { createLogger, type Logger } from './logger.ts';
 import { createMetrics, type Metrics } from './metrics.ts';
-import { NewApiLogClient } from './newapi-client.ts';
+import { NewApiLogClient, SqliteLogSource, type LogSource } from './newapi-client.ts';
 import { openDatabase } from './store/open.ts';
 import type { Db } from './store/db.ts';
 import { Store } from './store/store.ts';
@@ -36,15 +36,20 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
   const writer = new ProxyWriter(store, config, metrics, logger);
   const auth = new AdminAuth(config);
 
-  const client = config.newapi.enabled && config.newapi.baseUrl && config.newapi.adminToken
-    ? new NewApiLogClient({
+  let client: LogSource | null = null;
+  if (config.newapi.enabled) {
+    if (config.newapi.sqlitePath) {
+      client = new SqliteLogSource({ path: config.newapi.sqlitePath });
+    } else if (config.newapi.baseUrl && config.newapi.adminToken) {
+      client = new NewApiLogClient({
         baseUrl: config.newapi.baseUrl,
         adminToken: config.newapi.adminToken,
         adminUserId: config.newapi.adminUserId,
         timeoutMs: config.newapi.timeoutMs,
         pageSize: config.newapi.pageSize,
-      })
-    : null;
+      });
+    }
+  }
   const sync = new LogSync(store, client, config, metrics, logger);
 
   const proxyHandler = createProxyHandler({ config, writer, logger });

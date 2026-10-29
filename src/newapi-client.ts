@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import type { UsageEventInsert, UsageSource } from './store/types.ts';
 
 export interface RawLog {
@@ -21,6 +22,17 @@ export interface NewApiClientOptions {
   adminUserId: string | null;
   timeoutMs: number;
   pageSize: number;
+}
+
+export interface LogSource {
+  fetchPage(
+    type: number,
+    startSeconds: number,
+    endSeconds: number,
+    page: number,
+    pageSize: number,
+  ): Promise<RawLog[]>;
+  describe(): string;
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -99,7 +111,8 @@ export function mapRawLog(
 
   const userId = numberOrNull(raw.user_id);
   const tokenId = numberOrNull(raw.token_id);
-  const channel = numberOrNull(raw.channel);
+  // New API 各版本字段不同：v0.13 使用 channel_id，较新版本使用 channel。
+  const channel = numberOrNull(raw.channel ?? raw.channel_id);
   const sourceIdentity =
     sourceKeyMode === 'id' && sourceId !== null
       ? `id:${sourceId}`
@@ -132,6 +145,9 @@ export function mapRawLog(
     completion_tokens: completionTokens,
     quota,
     channel,
+    channel_name: stringOrNull(raw.channel_name),
+    use_time: numberOrNull(raw.use_time),
+    is_stream: raw.is_stream ?? null,
     token_id: tokenId,
     user_id: userId,
     other: adminInfo ? { admin_info: { local_count_tokens: adminInfo.local_count_tokens === true } } : null,
@@ -159,11 +175,15 @@ export function mapRawLog(
   };
 }
 
-export class NewApiLogClient {
+export class NewApiLogClient implements LogSource {
   private readonly options: NewApiClientOptions;
 
   constructor(options: NewApiClientOptions) {
     this.options = options;
+  }
+
+  describe(): string {
+    return `http:${this.options.baseUrl.origin}`;
   }
 
   async fetchPage(
@@ -225,5 +245,58 @@ export class NewApiLogClient {
       if (Array.isArray(nested.data)) return nested.data as RawLog[];
     }
     return [];
+  }
+}
+
+export interface SqliteLogSourceOptions {
+  path: string;
+}
+
+/**
+ * 只读打开 New API 的 SQLite 日志库，适用于与 New API 同机部署
+ * 且管理员 access_token 不可用的场景。每次查询独立打开，避免长期占用写锁。
+ */
+export class SqliteLogSource implements LogSource {
+  private readonly path: string;
+
+  constructor(options: SqliteLogSourceOptions) {
+    this.path = options.path;
+  }
+
+  describe(): string {
+    return `sqlite:${this.path}`;
+  }
+
+  async fetchPage(
+    type: number,
+    startSeconds: number,
+    endSeconds: number,
+    page: number,
+    pageSize: number,
+  ): Promise<RawLog[]> {
+    let db: DatabaseSync;
+    try {
+      db = new DatabaseSync(this.path, { readOnly: true });
+    } catch (error) {
+      throw new NewApiError(`无法打开 New API 日志库：${(error as Error).message}`, 0);
+    }
+    try {
+      const offset = (page - 1) * pageSize;
+      const statement = db.prepare(
+        `SELECT id, user_id, created_at, type, content, username, token_name, model_name,
+                quota, prompt_tokens, completion_tokens, use_time, is_stream, channel_id,
+                channel_name, token_id, "group", ip, request_id, other
+         FROM logs
+         WHERE type = ? AND created_at >= ? AND created_at <= ?
+         ORDER BY created_at ASC, id ASC
+         LIMIT ? OFFSET ?`,
+      );
+      const rows = statement.all(type, startSeconds, endSeconds, pageSize, offset) as RawLog[];
+      return rows.map((row) => ({ ...row }));
+    } catch (error) {
+      throw new NewApiError(`读取 New API 日志库失败：${(error as Error).message}`, 0);
+    } finally {
+      db.close();
+    }
   }
 }

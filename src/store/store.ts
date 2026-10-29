@@ -4,6 +4,7 @@ import type {
   AssociationCounts,
   BreakdownRow,
   CaptureStats,
+  IdentityStats,
   ProxyRequestFilter,
   ProxyRequestInsert,
   ProxyRequestRecord,
@@ -221,14 +222,35 @@ export class Store {
       'u.deployment_id = p.deployment_id',
       'u.newapi_request_id = p.newapi_request_id',
     ];
+    const where = ['p.deployment_id = $1', 'p.received_at >= $2', 'p.received_at < $3'];
     if (filter.userId !== null && filter.userId !== undefined) {
       params.push(filter.userId);
-      joinConditions.push(`u.user_id = $${params.length}`);
+      where.push(`EXISTS (
+        SELECT 1 FROM usage_event uf
+        WHERE uf.deployment_id = p.deployment_id
+          AND uf.newapi_request_id = p.newapi_request_id
+          AND uf.user_id = $${params.length}
+      )`);
     }
-    const where = ['p.deployment_id = $1', 'p.received_at >= $2', 'p.received_at < $3'];
+    if (filter.tokenId !== null && filter.tokenId !== undefined) {
+      params.push(filter.tokenId);
+      where.push(`EXISTS (
+        SELECT 1 FROM usage_event uf
+        WHERE uf.deployment_id = p.deployment_id
+          AND uf.newapi_request_id = p.newapi_request_id
+          AND uf.token_id = $${params.length}
+      )`);
+    }
     if (filter.model) {
       params.push(filter.model);
-      where.push(`p.model = $${params.length}`);
+      const first = params.length;
+      params.push(filter.model);
+      where.push(`(p.model = $${first} OR EXISTS (
+        SELECT 1 FROM usage_event uf
+        WHERE uf.deployment_id = p.deployment_id
+          AND uf.newapi_request_id = p.newapi_request_id
+          AND uf.model = $${params.length}
+      ))`);
     }
     if (filter.query) {
       params.push(`%${filter.query}%`);
@@ -299,6 +321,10 @@ export class Store {
       params.push(filter.userId);
       clauses.push(`u.user_id = $${params.length}`);
     }
+    if (filter.tokenId !== null && filter.tokenId !== undefined) {
+      params.push(filter.tokenId);
+      clauses.push(`u.token_id = $${params.length}`);
+    }
     if (filter.model) {
       params.push(filter.model);
       clauses.push(`u.model = $${params.length}`);
@@ -327,6 +353,7 @@ export class Store {
         COALESCE(SUM(CASE WHEN u.log_type = 2 AND u.usage_source = 'estimated' THEN 1 ELSE 0 END), 0) AS estimated_events,
         COALESCE(SUM(CASE WHEN u.log_type = 2 AND u.usage_source = 'missing' THEN 1 ELSE 0 END), 0) AS missing_events,
         COUNT(DISTINCT CASE WHEN u.log_type = 2 AND u.user_id IS NOT NULL THEN u.user_id END) AS active_users,
+        COUNT(DISTINCT CASE WHEN u.log_type = 2 AND u.token_id IS NOT NULL THEN u.token_id END) AS active_tokens,
         COUNT(DISTINCT CASE WHEN u.log_type = 2 THEN u.model END) AS model_count
        FROM usage_event u
        WHERE ${where}`,
@@ -343,13 +370,33 @@ export class Store {
       estimated_events: num(row.estimated_events),
       missing_events: num(row.missing_events),
       active_users: num(row.active_users),
+      active_tokens: num(row.active_tokens),
       model_count: num(row.model_count),
     };
   }
 
+  async identityStats(filter: UsageFilter, preferred: 'auto' | 'user' | 'token' = 'auto'): Promise<IdentityStats> {
+    const rows = await this.db.query<Row>(
+      `SELECT
+        COUNT(DISTINCT CASE WHEN log_type = 2 AND user_id IS NOT NULL THEN user_id END) AS distinct_users,
+        COUNT(DISTINCT CASE WHEN log_type = 2 AND token_id IS NOT NULL THEN token_id END) AS distinct_tokens
+       FROM usage_event
+       WHERE deployment_id = $1 AND created_at >= $2 AND created_at < $3`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    const row = rows[0] ?? {};
+    const distinctUsers = num(row.distinct_users);
+    const distinctTokens = num(row.distinct_tokens);
+    let mode: 'user' | 'token';
+    if (preferred === 'token') mode = 'token';
+    else if (preferred === 'user') mode = 'user';
+    else mode = distinctUsers <= 1 && distinctTokens > 1 ? 'token' : 'user';
+    return { distinct_users: distinctUsers, distinct_tokens: distinctTokens, mode };
+  }
+
   async usageBreakdown(
     filter: UsageFilter,
-    groupBy: 'day' | 'user' | 'model',
+    groupBy: 'day' | 'user' | 'token' | 'model',
     limit = 30,
   ): Promise<BreakdownRow[]> {
     const { where, params } = this.usageWhere(filter);
@@ -361,6 +408,9 @@ export class Store {
     } else if (groupBy === 'user') {
       bucket = 'u.user_id AS bucket_id, u.username AS bucket_label';
       group = 'u.user_id, u.username';
+    } else if (groupBy === 'token') {
+      bucket = 'u.token_id AS bucket_id, u.token_name AS bucket_label';
+      group = 'u.token_id, u.token_name';
     } else {
       bucket = 'u.model AS bucket_id, u.model AS bucket_label';
       group = 'u.model';

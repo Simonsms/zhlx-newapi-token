@@ -197,6 +197,13 @@ export function parseIsoRange(
   return { ok: true, from, to };
 }
 
+export function parseOptionalId(value: string | null): number | null {
+  if (value === null || value === '') return null;
+  if (!/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 export function parseInteger(value: string | null, fallback: number, min: number, max: number): number {
   if (value === null || value === '') return fallback;
   const parsed = Number(value);

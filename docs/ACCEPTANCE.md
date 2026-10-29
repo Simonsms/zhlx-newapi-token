@@ -20,6 +20,8 @@
 - [x] 估算标记 `estimated`、缺失标记 `missing` 且保持 null（`test/sync.test.ts`）
 - [x] `quota` 标注为网关额度，不当作供应商成本（UI 与 README）
 - [x] 按天/用户/模型分组与筛选（`test/sync.test.ts`）
+- [x] 共享账号时按凭证归属，一人一账号时按账号归属（`test/identity.test.ts`）
+- [x] 只读直读 New API SQLite 日志库，兼容 v0.13 的 `channel_id` 字段（`test/identity.test.ts`）
 - [x] 不同部署的相同日志/请求不串（`test/unit.test.ts`、`test/association.test.ts`）
 - [x] PostgreSQL 方言实测（`test/postgres.test.ts`）
 
@@ -45,8 +47,8 @@
 
 ## 尚未执行
 
-- 真实 New API 实例的日志接口字段核验（尤其 `NEWAPI_SOURCE_KEY_MODE`）
-- 真实账号/Key 分配与共享 Key 比例的现场确认
+- 内网一人一账号环境的接入验证（`IDENTITY_MODE=user`）
+- 真实账号/Key 分配与共享 Key 比例的现场确认：已确认测试环境为共享 admin 账号
 - 容量压测、脱敏准确率评测、删除演练
 - 真实浏览器的管理界面交互测试（已做 HTML/脚本语法与 HTTP 冒烟）
 - 第二阶段离线分类

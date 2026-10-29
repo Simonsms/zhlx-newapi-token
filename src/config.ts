@@ -13,6 +13,7 @@ export interface NewApiConfig {
   safetyLagMs: number;
   timeoutMs: number;
   sourceKeyMode: 'composite' | 'id';
+  sqlitePath: string | null;
 }
 
 export interface Config {
@@ -39,6 +40,7 @@ export interface Config {
   queueFlushMs: number;
   queueBatchSize: number;
   associationPendingWindowMs: number;
+  identityMode: 'auto' | 'user' | 'token';
   newapi: NewApiConfig;
 }
 
@@ -99,6 +101,12 @@ function readLogLevel(env: NodeJS.ProcessEnv): LogLevel {
   throw new ConfigError('LOG_LEVEL', '必须是 debug/info/warn/error');
 }
 
+function readIdentityMode(env: NodeJS.ProcessEnv): 'auto' | 'user' | 'token' {
+  const value = readString(env, 'IDENTITY_MODE', 'auto').toLowerCase();
+  if (value === 'auto' || value === 'user' || value === 'token') return value;
+  throw new ConfigError('IDENTITY_MODE', '必须是 auto/user/token');
+}
+
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
   const adminToken = readOptional(env, 'ADMIN_API_TOKEN');
   const sessionSecret = readOptional(env, 'SESSION_SECRET') ??
@@ -114,9 +122,13 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
 
   const newapiBaseUrl = readOptional(env, 'NEWAPI_BASE_URL');
   const newapiAdminToken = readOptional(env, 'NEWAPI_ADMIN_TOKEN');
+  const newapiSqlitePath = readOptional(env, 'NEWAPI_SQLITE_PATH');
   const newapiEnabled = readBool(env, 'NEWAPI_LOG_SYNC_ENABLED', false);
-  if (newapiEnabled && (!newapiBaseUrl || !newapiAdminToken)) {
-    throw new ConfigError('NEWAPI_LOG_SYNC_ENABLED', '启用同步时必须同时设置 NEWAPI_BASE_URL 和 NEWAPI_ADMIN_TOKEN');
+  if (newapiEnabled && !newapiSqlitePath && (!newapiBaseUrl || !newapiAdminToken)) {
+    throw new ConfigError(
+      'NEWAPI_LOG_SYNC_ENABLED',
+      '启用同步时必须设置 NEWAPI_SQLITE_PATH，或同时设置 NEWAPI_BASE_URL 和 NEWAPI_ADMIN_TOKEN',
+    );
   }
   const sourceKeyModeRaw = readString(env, 'NEWAPI_SOURCE_KEY_MODE', 'composite');
   if (sourceKeyModeRaw !== 'composite' && sourceKeyModeRaw !== 'id') {
@@ -149,6 +161,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
     queueFlushMs: readInt(env, 'QUEUE_FLUSH_MS', 1000, 10),
     queueBatchSize: readInt(env, 'QUEUE_BATCH_SIZE', 200, 1),
     associationPendingWindowMs: readInt(env, 'ASSOCIATION_PENDING_WINDOW_MS', 300_000, 0),
+    identityMode: readIdentityMode(env),
     newapi: {
       enabled: newapiEnabled,
       baseUrl: newapiBaseUrl ? readUrl(env, 'NEWAPI_BASE_URL', newapiBaseUrl) : null,
@@ -161,6 +174,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
       safetyLagMs: readInt(env, 'NEWAPI_LOG_SAFETY_LAG_MS', 30_000, 0),
       timeoutMs: readInt(env, 'NEWAPI_LOG_TIMEOUT_MS', 30_000, 1000),
       sourceKeyMode: sourceKeyModeRaw,
+      sqlitePath: newapiSqlitePath,
     },
   };
 }

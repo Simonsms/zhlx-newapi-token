@@ -85,6 +85,7 @@ export interface ProxyRequestFilter {
   from: string;
   to: string;
   userId?: number | null;
+  tokenId?: number | null;
   model?: string | null;
   status?: AssociationStatus | null;
   query?: string | null;
@@ -96,7 +97,14 @@ export interface UsageFilter {
   from: string;
   to: string;
   userId?: number | null;
+  tokenId?: number | null;
   model?: string | null;
+}
+
+export interface IdentityStats {
+  distinct_users: number;
+  distinct_tokens: number;
+  mode: 'user' | 'token';
 }
 
 export interface UsageTotals {
@@ -109,6 +117,7 @@ export interface UsageTotals {
   estimated_events: number;
   missing_events: number;
   active_users: number;
+  active_tokens: number;
   model_count: number;
 }
 

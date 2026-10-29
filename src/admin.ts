@@ -5,6 +5,7 @@ import {
   clientIp,
   parseInteger,
   parseIsoRange,
+  parseOptionalId,
   readJsonBody,
   sendJson,
   sendText,
@@ -143,19 +144,23 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         return;
       }
       const filter = { from: range.from.toISOString(), to: range.to.toISOString() };
-      const [totals, capturedTotals, capture, association, usageSources, sync] = await Promise.all([
+      const [totals, capturedTotals, capture, association, usageSources, sync, identity] = await Promise.all([
         store.usageTotals(filter),
         store.usageTotals(filter, true),
         store.captureStats(filter),
         store.associationCounts(filter, config.associationPendingWindowMs),
         store.usageSourceCounts(filter),
         store.getSyncState(),
+        store.identityStats(filter, config.identityMode),
       ]);
       sendJson(res, 200, {
         from: filter.from,
         to: filter.to,
         deployment_id: config.deploymentId,
         capture_enabled: config.captureEnabled,
+        identity_mode: identity.mode,
+        identity_configured: config.identityMode,
+        identity_stats: { distinct_users: identity.distinct_users, distinct_tokens: identity.distinct_tokens },
         totals,
         captured_totals: capturedTotals,
         capture,
@@ -180,23 +185,39 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         return;
       }
       const userIdRaw = url.searchParams.get('user_id');
+      const tokenIdRaw = url.searchParams.get('token_id');
       const model = url.searchParams.get('model');
       const filter = {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
-        userId: userIdRaw ? Number(userIdRaw) : null,
+        userId: parseOptionalId(userIdRaw),
+        tokenId: parseOptionalId(tokenIdRaw),
         model: model && model.length > 0 ? model : null,
       };
-      const groupByRaw = url.searchParams.get('group_by') ?? 'day';
-      if (groupByRaw !== 'day' && groupByRaw !== 'user' && groupByRaw !== 'model') {
+      const groupByRaw = url.searchParams.get('group_by') ?? 'identity';
+      const identity = await store.identityStats(
+        { from: filter.from, to: filter.to },
+        config.identityMode,
+      );
+      const effectiveGroup =
+        groupByRaw === 'identity' ? identity.mode : groupByRaw;
+      if (effectiveGroup !== 'day' && effectiveGroup !== 'user' && effectiveGroup !== 'token' && effectiveGroup !== 'model') {
         sendJson(res, 400, { error: 'invalid_group_by' });
         return;
       }
       const [totals, breakdown] = await Promise.all([
         store.usageTotals(filter),
-        store.usageBreakdown(filter, groupByRaw),
+        store.usageBreakdown(filter, effectiveGroup),
       ]);
-      sendJson(res, 200, { from: filter.from, to: filter.to, group_by: groupByRaw, totals, breakdown });
+      sendJson(res, 200, {
+        from: filter.from,
+        to: filter.to,
+        group_by: effectiveGroup,
+        identity_mode: identity.mode,
+        identity_configured: config.identityMode,
+        totals,
+        breakdown,
+      });
       return;
     }
 
@@ -216,6 +237,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         status = statusRaw as AssociationStatus;
       }
       const userIdRaw = url.searchParams.get('user_id');
+      const tokenIdRaw = url.searchParams.get('token_id');
       const model = url.searchParams.get('model');
       const query = url.searchParams.get('q');
       const page = parseInteger(url.searchParams.get('page'), 1, 1, 100_000);
@@ -223,7 +245,8 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       const filter = {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
-        userId: userIdRaw ? Number(userIdRaw) : null,
+        userId: parseOptionalId(userIdRaw),
+        tokenId: parseOptionalId(tokenIdRaw),
         model: model && model.length > 0 ? model : null,
         status,
         query: query && query.length > 0 ? query.slice(0, 200) : null,
