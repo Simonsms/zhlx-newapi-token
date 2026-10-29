@@ -1,0 +1,25 @@
+{
+  "name": "zhlx-newapi-token",
+  "version": "0.1.0",
+  "private": true,
+  "description": "New API 前置采集代理、用量关联与管理员查询",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "dev": "node --watch --env-file-if-exists=.env src/server.ts",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "sync:once": "node --env-file-if-exists=.env src/cli-sync.ts"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
+  }
+}

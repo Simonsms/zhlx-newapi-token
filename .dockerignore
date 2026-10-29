@@ -1,0 +1,8 @@
+.env
+.env.compose.example
+node_modules
+.git
+data
+*.log
+test
+docs

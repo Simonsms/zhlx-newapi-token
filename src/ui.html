@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--CSP-->
+<title>New API 用量与 Prompt 采集</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #161c23;
+    --panel-2: #1c242d;
+    --line: #29333e;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --accent: #4f9cf9;
+    --good: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; align-items: center; }
+  main { padding: 20px 22px 60px; max-width: 1400px; margin: 0 auto; }
+  .hidden { display: none !important; }
+  button, input, select {
+    font: inherit; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
+  button.ghost { background: transparent; }
+  label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  .stat .v { font-size: 21px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .stat .s { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--panel-2); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 11px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.good { color: var(--good); border-color: #1f4429; background: #12261a; }
+  .tag.warn { color: var(--warn); border-color: #3d3315; background: #241f10; }
+  .tag.bad { color: var(--bad); border-color: #4a1f1f; background: #2a1414; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .login { max-width: 360px; margin: 12vh auto; }
+  .login input { width: 100%; margin-bottom: 10px; }
+  .error { color: var(--bad); font-size: 13px; min-height: 20px; }
+  .prompt {
+    white-space: pre-wrap; word-break: break-word; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    max-height: 340px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  }
+  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; }
+  @media (max-width: 980px) { .split { grid-template-columns: 1fr; } }
+  a.link { color: var(--accent); cursor: pointer; text-decoration: none; }
+  a.link:hover { text-decoration: underline; }
+  .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+  .close { float: right; }
+  details summary { cursor: pointer; color: var(--accent); }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .bar > div { height: 100%; background: var(--accent); }
+  .notice { border-left: 3px solid var(--warn); padding: 8px 12px; background: #241f10; border-radius: 6px; color: #e3c67d; font-size: 12.5px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>New API 用量与 Prompt 采集</h1>
+  <div class="meta">
+    <span id="deployment"></span>
+    <span id="captureflag"></span>
+    <button class="ghost hidden" id="logoutBtn">退出</button>
+  </div>
+</header>
+
+<main>
+  <section id="loginView" class="login card hidden">
+    <h2>管理员登录</h2>
+    <label for="token">管理员令牌</label>
+    <input id="token" type="password" autocomplete="current-password" placeholder="ADMIN_API_TOKEN">
+    <button class="primary" id="loginBtn">登录</button>
+    <div class="error" id="loginError"></div>
+    <p class="muted" style="font-size:12px">令牌在服务端配置，浏览器仅保存签名会话 Cookie。</p>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div id="configNotice" class="notice hidden">管理接口未配置：请设置 ADMIN_API_TOKEN 后重启服务。</div>
+
+    <div class="card">
+      <div class="row">
+        <div><label>开始时间</label><input id="from" type="datetime-local"></div>
+        <div><label>结束时间</label><input id="to" type="datetime-local"></div>
+        <div><label>用户 ID</label><input id="userId" type="number" placeholder="全部" style="width:110px"></div>
+        <div><label>模型</label><input id="model" placeholder="全部"></div>
+        <div><label>关联状态</label>
+          <select id="status">
+            <option value="">全部</option>
+            <option value="matched">已匹配</option>
+            <option value="pending">等待日志</option>
+            <option value="unmatched">未匹配</option>
+            <option value="no_gateway_id">无网关 ID</option>
+          </select>
+        </div>
+        <div><label>Prompt 搜索</label><input id="q" placeholder="关键字"></div>
+        <button class="primary" id="applyBtn">查询</button>
+        <button class="ghost" id="resetBtn">最近 24 小时</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>全量原生日志用量</h2>
+      <div class="stats" id="totals"></div>
+      <p class="muted" id="totalsNote" style="font-size:12px;margin:10px 0 0"></p>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <h2>采集与关联质量</h2>
+        <div class="stats" id="quality"></div>
+        <div id="skipReasons" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>日志同步</h2>
+        <div class="stats" id="syncStats"></div>
+        <p class="muted" id="syncError" style="font-size:12px;margin:10px 0 0"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">用量分组</h2>
+        <select id="groupBy">
+          <option value="day">按天</option>
+          <option value="user">按用户</option>
+          <option value="model">按模型</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th id="bucketHead">日期</th><th class="num">消费事件</th><th class="num">错误事件</th><th class="num">输入 Token</th><th class="num">输出 Token</th><th class="num">额度</th></tr></thead>
+        <tbody id="breakdownBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>采集请求</h2>
+      <table>
+        <thead><tr><th>时间</th><th>接口</th><th>模型</th><th>状态</th><th>关联</th><th>Prompt</th><th>网关请求 ID</th></tr></thead>
+        <tbody id="requestsBody"></tbody>
+      </table>
+      <div class="pager">
+        <span class="muted" id="pageInfo"></span>
+        <button class="ghost" id="prevBtn">上一页</button>
+        <button class="ghost" id="nextBtn">下一页</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="detailCard">
+      <button class="ghost close" id="closeDetail">关闭</button>
+      <h2>请求详情</h2>
+      <div id="detailMeta" class="muted" style="font-size:12px;margin-bottom:12px"></div>
+      <div class="split">
+        <div>
+          <h2>脱敏用户文本</h2>
+          <div class="prompt" id="detailPrompt">（无）</div>
+        </div>
+        <div>
+          <h2>原生消费事件</h2>
+          <table>
+            <thead><tr><th>类型</th><th>时间</th><th>用户/凭证</th><th class="num">输入</th><th class="num">输出</th><th class="num">额度</th><th>来源</th></tr></thead>
+            <tbody id="detailEvents"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var state = { page: 1, pageSize: 25, total: 0, from: null, to: null, configured: true };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(value) {
+    if (value === null || value === undefined) return "";
+    return String(value).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmt(n) {
+    if (n === null || n === undefined) return "—";
+    return Number(n).toLocaleString("zh-CN");
+  }
+  function isoLocal(date) {
+    var pad = function (v) { return String(v).padStart(2, "0"); };
+    return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+  }
+  function parseLocal(value) {
+    if (!value) return null;
+    var d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function rangeQuery() {
+    var params = new URLSearchParams();
+    var from = parseLocal($("from").value);
+    var to = parseLocal($("to").value);
+    if (from) params.set("from", from.toISOString());
+    if (to) params.set("to", to.toISOString());
+    var userId = $("userId").value.trim();
+    if (userId) params.set("user_id", userId);
+    var model = $("model").value.trim();
+    if (model) params.set("model", model);
+    return params;
+  }
+  async function api(path, options) {
+    var res = await fetch(path, Object.assign({ credentials: "same-origin" }, options || {}));
+    if (res.status === 401) { showLogin(); throw new Error("unauthorized"); }
+    if (!res.ok) {
+      var body = null;
+      try { body = await res.json(); } catch (e) {}
+      throw new Error((body && body.error) || ("HTTP " + res.status));
+    }
+    return res.json();
+  }
+  function statHtml(k, v, s) {
+    return '<div class="stat"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>' + (s ? '<div class="s">' + esc(s) + '</div>' : "") + '</div>';
+  }
+  function tag(text, cls) { return '<span class="tag ' + (cls || "") + '">' + esc(text) + '</span>'; }
+  function assocTag(status) {
+    var map = { matched: ["已匹配", "good"], pending: ["等待日志", "warn"], unmatched: ["未匹配", "bad"], no_gateway_id: ["无网关 ID", "bad"] };
+    var m = map[status] || [status, ""];
+    return tag(m[0], m[1]);
+  }
+  function captureTag(status) {
+    var map = { captured: ["已采集", "good"], disabled: ["未启用", ""], skipped: ["已跳过", "warn"], dropped: ["队列丢弃", "bad"], expired: ["已过期", ""] };
+    var m = map[status] || [status, ""];
+    return tag(m[0], m[1]);
+  }
+
+  function showLogin() {
+    $("loginView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+    $("logoutBtn").classList.add("hidden");
+  }
+  function showApp() {
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+    $("logoutBtn").classList.remove("hidden");
+  }
+
+  async function boot() {
+    var now = new Date();
+    $("to").value = isoLocal(now);
+    $("from").value = isoLocal(new Date(now.getTime() - 24 * 3600 * 1000));
+    var session;
+    try {
+      session = await api("/admin/session");
+    } catch (e) {
+      showLogin();
+      return;
+    }
+    state.configured = session.configured;
+    $("deployment").textContent = "部署：" + session.deployment_id;
+    $("captureflag").textContent = session.captured_enabled ? "Prompt 采集已启用" : "Prompt 采集已关闭";
+    if (!session.configured) {
+      $("configNotice").classList.remove("hidden");
+      showApp();
+      $("logoutBtn").classList.add("hidden");
+      return;
+    }
+    if (!session.authenticated) { showLogin(); return; }
+    showApp();
+    await refreshAll();
+  }
+
+  async function login() {
+    $("loginError").textContent = "";
+    try {
+      var res = await fetch("/admin/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: $("token").value })
+      });
+      if (!res.ok) {
+        var body = null;
+        try { body = await res.json(); } catch (e) {}
+        $("loginError").textContent = (body && body.error) || "登录失败";
+        return;
+      }
+      $("token").value = "";
+      showApp();
+      await refreshAll();
+    } catch (e) {
+      $("loginError").textContent = "登录失败：" + e.message;
+    }
+  }
+
+  async function refreshAll() {
+    await Promise.all([loadOverview(), loadUsage(), loadRequests()]);
+  }
+
+  async function loadOverview() {
+    var query = rangeQuery();
+    var data;
+    try { data = await api("/admin/api/overview?" + query.toString()); }
+    catch (e) { return; }
+    var t = data.totals;
+    $("totals").innerHTML =
+      statHtml("消费事件", fmt(t.consume_events), "调用口径另见关联请求") +
+      statHtml("错误事件", fmt(t.error_events)) +
+      statHtml("输入 Token", fmt(t.prompt_tokens)) +
+      statHtml("输出 Token", fmt(t.completion_tokens)) +
+      statHtml("网关额度", fmt(t.quota), "非供应商现金成本") +
+      statHtml("活跃用户", fmt(t.active_users), "按原生 user_id") +
+      statHtml("估算用量事件", fmt(t.estimated_events)) +
+      statHtml("缺失用量事件", fmt(t.missing_events), "缺失不记为零");
+    $("totalsNote").textContent = "有 Prompt 子集的输入 Token：" + fmt(data.captured_totals.prompt_tokens) +
+      "；来源分布：" + (data.usage_sources.length ? data.usage_sources.map(function (s) { return s.source + " " + s.count; }).join("，") : "暂无数据") +
+      "。额度为网关结算，不代表上游现金成本。";
+
+    var c = data.capture;
+    var a = data.association;
+    var coverage = c.total > 0 ? Math.round((c.prompt_stored / c.total) * 1000) / 10 : 0;
+    $("quality").innerHTML =
+      statHtml("入口请求", fmt(c.total)) +
+      statHtml("已存 Prompt", fmt(c.prompt_stored), "覆盖率 " + coverage + "%") +
+      statHtml("已采集", fmt(c.captured)) +
+      statHtml("已跳过", fmt(c.skipped)) +
+      statHtml("采集未启用", fmt(c.disabled)) +
+      statHtml("队列丢弃", fmt(c.dropped)) +
+      statHtml("已匹配", fmt(a.matched)) +
+      statHtml("等待日志", fmt(a.pending)) +
+      statHtml("未匹配", fmt(a.unmatched)) +
+      statHtml("无网关 ID", fmt(a.no_gateway_id)) +
+      statHtml("写入错误", fmt(data.metrics.write_errors), data.metrics.last_write_error || "");
+
+    var reasons = await api("/admin/api/capture-quality?" + query.toString()).catch(function () { return null; });
+    if (reasons && reasons.skip_reasons.length) {
+      $("skipReasons").innerHTML = "<div class=\"muted\" style=\"font-size:12px;margin-bottom:6px\">跳过原因</div>" +
+        reasons.skip_reasons.map(function (r) { return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span class="mono">' + esc(r.reason) + "</span><span>" + fmt(r.count) + "</span></div>"; }).join("");
+    } else {
+      $("skipReasons").innerHTML = "";
+    }
+
+    var s = data.sync;
+    if (s) {
+      $("syncStats").innerHTML =
+        statHtml("累计事件", fmt(s.events_total)) +
+        statHtml("同步水位", s.watermark ? new Date(s.watermark).toLocaleString("zh-CN") : "—") +
+        statHtml("上次成功", s.last_success_at ? new Date(s.last_success_at).toLocaleString("zh-CN") : "—");
+      $("syncError").textContent = s.last_error ? ("最近错误：" + s.last_error) : "同步运行正常。";
+    } else {
+      $("syncStats").innerHTML = statHtml("同步状态", "未运行", "设置 NEWAPI_LOG_SYNC_ENABLED=true");
+      $("syncError").textContent = "";
+    }
+  }
+
+  async function loadUsage() {
+    var query = rangeQuery();
+    query.set("group_by", $("groupBy").value);
+    var data;
+    try { data = await api("/admin/api/usage?" + query.toString()); }
+    catch (e) { return; }
+    var labels = { day: "日期", user: "用户", model: "模型" };
+    $("bucketHead").textContent = labels[data.group_by] || "分组";
+    if (!data.breakdown.length) {
+      $("breakdownBody").innerHTML = '<tr><td colspan="6" class="muted">暂无数据</td></tr>';
+      return;
+    }
+    $("breakdownBody").innerHTML = data.breakdown.map(function (row) {
+      var label = row.bucket_label || row.bucket_id || "未知";
+      return "<tr><td>" + esc(label) + "</td><td class=\"num\">" + fmt(row.consume_events) + "</td><td class=\"num\">" +
+        fmt(row.error_events) + "</td><td class=\"num\">" + fmt(row.prompt_tokens) + "</td><td class=\"num\">" +
+        fmt(row.completion_tokens) + "</td><td class=\"num\">" + fmt(row.quota) + "</td></tr>";
+    }).join("");
+  }
+
+  async function loadRequests() {
+    var query = rangeQuery();
+    query.set("page", String(state.page));
+    query.set("page_size", String(state.pageSize));
+    var status = $("status").value;
+    if (status) query.set("status", status);
+    var q = $("q").value.trim();
+    if (q) query.set("q", q);
+    var data;
+    try { data = await api("/admin/api/requests?" + query.toString()); }
+    catch (e) { return; }
+    state.total = data.total;
+    if (!data.items.length) {
+      $("requestsBody").innerHTML = '<tr><td colspan="7" class="muted">暂无采集请求</td></tr>';
+    } else {
+      $("requestsBody").innerHTML = data.items.map(function (item) {
+        var promptCell = item.prompt_text === null ? '<span class="muted">—</span>' : '<a class="link" data-id="' + esc(item.proxy_request_id) + '">查看</a>';
+        return "<tr><td class=\"mono\">" + esc(new Date(item.received_at).toLocaleString("zh-CN")) + "</td><td class=\"mono\">" + esc(item.path) +
+          "</td><td>" + esc(item.model || "—") + "</td><td>" + captureTag(item.capture_status) +
+          (item.skip_reason ? ' <span class="muted mono" style="font-size:11px">' + esc(item.skip_reason) + "</span>" : "") +
+          "</td><td>" + assocTag(item.association_status) + "</td><td>" + promptCell +
+          "</td><td class=\"mono\" style=\"font-size:11px\">" + esc(item.newapi_request_id || "—") + "</td></tr>";
+      }).join("");
+    }
+    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    $("pageInfo").textContent = "第 " + state.page + " / " + pages + " 页，共 " + state.total + " 条";
+    $("prevBtn").disabled = state.page <= 1;
+    $("nextBtn").disabled = state.page >= pages;
+  }
+
+  async function openDetail(id) {
+    var data;
+    try { data = await api("/admin/api/requests/" + encodeURIComponent(id)); }
+    catch (e) { return; }
+    var r = data.request;
+    var rows = data.usage_events.map(function (e) {
+      var typeLabel = e.log_type === 2 ? "消费" : e.log_type === 5 ? "错误" : e.log_type === 6 ? "退款" : String(e.log_type);
+      return "<tr><td>" + esc(typeLabel) + "</td><td class=\"mono\" style=\"font-size:11px\">" + esc(new Date(e.created_at).toLocaleString("zh-CN")) +
+        "</td><td>" + esc((e.username || e.user_id || "—") + " / " + (e.token_name || e.token_id || "—")) +
+        "</td><td class=\"num\">" + fmt(e.prompt_tokens) + "</td><td class=\"num\">" + fmt(e.completion_tokens) +
+        "</td><td class=\"num\">" + fmt(e.quota) + "</td><td>" + esc(e.usage_source) + "</td></tr>";
+    }).join("");
+    $("detailEvents").innerHTML = rows || '<tr><td colspan="7" class="muted">暂无原生消费事件</td></tr>';
+    $("detailPrompt").textContent = r.prompt_text || "（无已保存的 Prompt）";
+    $("detailMeta").textContent = [
+      "本地请求 ID：" + r.proxy_request_id,
+      "网关请求 ID：" + (r.newapi_request_id || "无"),
+      "HTTP：" + (r.http_status || "—"),
+      "传输终态：" + r.transport_outcome,
+      "采集：" + r.capture_status + (r.skip_reason ? "（" + r.skip_reason + "）" : ""),
+      "提取范围：" + (r.prompt_scope || "—"),
+      "截断：" + (r.prompt_truncated ? "是" : "否"),
+      "耗时：" + (r.duration_ms || 0) + " ms"
+    ].join("　|　");
+    $("detailCard").classList.remove("hidden");
+    $("detailCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  $("loginBtn").addEventListener("click", login);
+  $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") login(); });
+  $("logoutBtn").addEventListener("click", async function () {
+    await fetch("/admin/logout", { method: "POST" }).catch(function () {});
+    showLogin();
+  });
+  $("applyBtn").addEventListener("click", function () { state.page = 1; refreshAll(); });
+  $("resetBtn").addEventListener("click", function () {
+    var now = new Date();
+    $("to").value = isoLocal(now);
+    $("from").value = isoLocal(new Date(now.getTime() - 24 * 3600 * 1000));
+    $("userId").value = ""; $("model").value = ""; $("status").value = ""; $("q").value = "";
+    state.page = 1; refreshAll();
+  });
+  $("groupBy").addEventListener("change", loadUsage);
+  $("prevBtn").addEventListener("click", function () { if (state.page > 1) { state.page -= 1; loadRequests(); } });
+  $("nextBtn").addEventListener("click", function () {
+    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    if (state.page < pages) { state.page += 1; loadRequests(); }
+  });
+  $("closeDetail").addEventListener("click", function () { $("detailCard").classList.add("hidden"); });
+  $("requestsBody").addEventListener("click", function (e) {
+    var target = e.target;
+    if (target && target.getAttribute && target.getAttribute("data-id")) openDetail(target.getAttribute("data-id"));
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
