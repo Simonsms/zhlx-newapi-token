@@ -1,0 +1,36 @@
+services:
+  zhlx-newapi-token:
+    build: .
+    image: zhlx-newapi-token:0.1.0
+    container_name: zhlx-newapi-token
+    restart: unless-stopped
+    ports:
+      - "50086:8080"
+    volumes:
+      - ./data:/app/data
+      # 只读挂载 New API 的 SQLite 日志库，用于增量同步
+      - /home/ubuntu/new-api/data:/newapi-data:ro
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      DEPLOYMENT_ID: prod-43.162.111.70
+      DATABASE_URL: file:/app/data/zhlx.db
+      UPSTREAM_URL: http://new-api:3000
+      LOG_LEVEL: info
+      CAPTURE_ENABLED: "false"
+      IDENTITY_MODE: auto
+      NEWAPI_LOG_SYNC_ENABLED: "true"
+      NEWAPI_SQLITE_PATH: /newapi-data/one-api.db
+      NEWAPI_LOG_PAGE_SIZE: "500"
+      NEWAPI_LOG_INITIAL_BACKFILL_HOURS: "8760"
+      NEWAPI_LOG_SYNC_INTERVAL_MS: "300000"
+      SESSION_COOKIE_SECURE: "false"
+      TRUST_PROXY_HEADERS: "false"
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+    networks:
+      - new-api_default
+
+networks:
+  new-api_default:
+    external: true

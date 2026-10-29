@@ -276,11 +276,12 @@ export class SqliteLogSource implements LogSource {
   ): Promise<RawLog[]> {
     let db: DatabaseSync;
     try {
-      db = new DatabaseSync(this.path, { readOnly: true });
+      db = new DatabaseSync(this.path, { readOnly: true, timeout: 5000 });
     } catch (error) {
       throw new NewApiError(`无法打开 New API 日志库：${(error as Error).message}`, 0);
     }
     try {
+      db.exec('PRAGMA busy_timeout=5000');
       const offset = (page - 1) * pageSize;
       const statement = db.prepare(
         `SELECT id, user_id, created_at, type, content, username, token_name, model_name,

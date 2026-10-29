@@ -96,6 +96,48 @@ networks:
 
 `DATABASE_URL` 若改用 PostgreSQL，按主 README 配置即可；SQLite 适合当前约 7 万条日志的规模，若持续增长到千万级建议迁移。
 
+## 实际部署记录（2026-10-29）
+
+已在目标服务器部署，**未改动 New API 现有容器与配置**，也**未切换任何流量**。
+
+| 项 | 值 |
+|---|---|
+| 代码目录 | `/home/ubuntu/zhlx-newapi-token` |
+| Compose 文件 | `docker-compose.standalone.yml` |
+| 镜像 | `zhlx-newapi-token:0.1.0` |
+| 容器 | `zhlx-newapi-token`，`restart: unless-stopped` |
+| 端口 | 宿主机 `50086` → 容器 `8080` |
+| 网络 | 加入 `new-api_default`，上游为 `http://new-api:3000` |
+| 本服务数据库 | `/home/ubuntu/zhlx-newapi-token/data/zhlx.db`（SQLite） |
+| 凭据 | 同目录 `.env`（权限 600），含随机生成的 `ADMIN_API_TOKEN` 与 `SESSION_SECRET` |
+| 正文采集 | 关闭 |
+| 日志同步 | 开启，只读挂载 `/home/ubuntu/new-api/data` |
+
+常用运维命令：
+
+```bash
+cd ~/zhlx-newapi-token
+sudo docker compose -f docker-compose.standalone.yml ps
+sudo docker logs --tail 50 zhlx-newapi-token
+sudo docker compose -f docker-compose.standalone.yml restart
+grep ^ADMIN_API_TOKEN .env        # 登录管理页所需令牌
+```
+
+首次启动遇到并已修复的问题：Docker 自动创建的 `./data` 目录属主为 root，容器以 `node`（uid 1000）运行导致建库失败。现已在宿主机执行 `chown -R 1000:1000 data`。若重建目录，需重复该步骤。
+
+### 部署后验证结果
+
+| 检查 | 结果 |
+|---|---|
+| `GET /healthz` | 200，`capture_enabled:false`，队列为空 |
+| `GET /admin` | 200 |
+| 未认证访问 `/admin/api/overview` | 401 |
+| 经代理访问 `/v1/models` | 401（透传 New API 鉴权结果，链路通） |
+| 首次全量同步 | 71,763 条，包含历史 7 个月数据 |
+| 归属口径 | 自动判定为 `token`（1 个账号 / 29 个凭证） |
+
+与源库直查对比时出现 1~2 条差额，原因是源库持续有新请求写入，而同步只覆盖到「当前时间 − 30 秒安全滞后」的窗口；下一轮 5 分钟同步会自动追平。这是预期行为，不是丢数据。
+
 ## 仍未确认
 
 - 对外域名与 TLS 入口：宿主机 nginx 默认站点未指向 50085，需确认客户端实际访问路径后再替换入口。
