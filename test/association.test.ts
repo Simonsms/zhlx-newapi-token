@@ -6,7 +6,7 @@ import { configFromEnv } from '../src/config.ts';
 import { createApp, type App } from '../src/server.ts';
 import { openDatabase } from '../src/store/open.ts';
 import { Store } from '../src/store/store.ts';
-import { baseUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
+import { adminBase, baseUrl, healthUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
 
 describe('关联状态与跨部署隔离', () => {
   let ctx: TestContext;
@@ -169,7 +169,7 @@ describe('关联状态与跨部署隔离', () => {
 
       const cookie = await login(slow);
       const found = await waitFor(async () => {
-        const res = await fetch(`${baseUrl(slow)}/admin/api/requests?page_size=100`, { headers: { cookie } });
+        const res = await fetch(`${adminBase(slow)}/api/requests?page_size=100`, { headers: { cookie } });
         if (!res.ok) return null;
         const body = (await res.json()) as { items: Array<{ transport_outcome: string; path: string; model: string | null }> };
         const item = body.items.find((entry) => entry.path === '/v1/chat/completions' && entry.model === 'slow-model');

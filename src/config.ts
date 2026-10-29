@@ -41,6 +41,8 @@ export interface Config {
   queueBatchSize: number;
   associationPendingWindowMs: number;
   identityMode: 'auto' | 'user' | 'token';
+  adminPath: string;
+  healthPath: string;
   newapi: NewApiConfig;
 }
 
@@ -107,6 +109,13 @@ function readIdentityMode(env: NodeJS.ProcessEnv): 'auto' | 'user' | 'token' {
   throw new ConfigError('IDENTITY_MODE', '必须是 auto/user/token');
 }
 
+function readPath(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
+  const value = readString(env, name, fallback).trim();
+  if (!value.startsWith('/')) throw new ConfigError(name, '必须以 / 开头');
+  if (value.length > 1 && value.endsWith('/')) return value.slice(0, -1);
+  return value;
+}
+
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
   const adminToken = readOptional(env, 'ADMIN_API_TOKEN');
   const sessionSecret = readOptional(env, 'SESSION_SECRET') ??
@@ -162,6 +171,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
     queueBatchSize: readInt(env, 'QUEUE_BATCH_SIZE', 200, 1),
     associationPendingWindowMs: readInt(env, 'ASSOCIATION_PENDING_WINDOW_MS', 300_000, 0),
     identityMode: readIdentityMode(env),
+    adminPath: readPath(env, 'ADMIN_PATH', '/_zhlx/admin'),
+    healthPath: readPath(env, 'HEALTH_PATH', '/_zhlx/healthz'),
     newapi: {
       enabled: newapiEnabled,
       baseUrl: newapiBaseUrl ? readUrl(env, 'NEWAPI_BASE_URL', newapiBaseUrl) : null,

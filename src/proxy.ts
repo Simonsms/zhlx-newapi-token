@@ -50,6 +50,8 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     const receivedAt = new Date(startedAt).toISOString();
 
     const captureRoute = config.captureRoutes.has(pathname) && req.method === 'POST';
+    // 只把推理接口的 POST 记为采集请求；网页、静态资源等流量仅透传，避免污染分析表。
+    const shouldRecord = captureRoute;
     const contentType = req.headers['content-type'];
     const contentEncoding = req.headers['content-encoding'];
     const teeEligible =
@@ -80,7 +82,13 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
       if (HOP_BY_HOP.has(name) || STRIPPED_REQUEST_HEADERS.has(name)) continue;
       headers[name] = value;
     }
-    headers.host = upstreamBase.host;
+    // 保留客户端原始 Host，避免 New API 生成绝对链接时指向容器名。
+    headers.host = req.headers.host ?? upstreamBase.host;
+    if (headers['x-forwarded-host'] === undefined) headers['x-forwarded-host'] = req.headers.host ?? upstreamBase.host;
+    if (headers['x-forwarded-for'] === undefined) {
+      headers['x-forwarded-for'] = req.socket.remoteAddress ?? '';
+    }
+    if (headers['x-forwarded-proto'] === undefined) headers['x-forwarded-proto'] = 'http';
 
     const transport = upstreamBase.protocol === 'https:' ? https : http;
     const upstreamReq = transport.request(target, { method: req.method, headers });
@@ -88,6 +96,7 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     const finalize = (): void => {
       if (finalized) return;
       finalized = true;
+      if (!shouldRecord) return;
 
       let captureStatus: CaptureStatus;
       let skipReason: string | null = null;

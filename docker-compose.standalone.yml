@@ -5,7 +5,7 @@ services:
     container_name: zhlx-newapi-token
     restart: unless-stopped
     ports:
-      - "50086:8080"
+      - "50085:8080"
     volumes:
       - ./data:/app/data
       # 只读挂载 New API 的 SQLite 日志库，用于增量同步
@@ -19,6 +19,8 @@ services:
       LOG_LEVEL: info
       # 采集开关与范围由 .env 控制，便于不改文件直接启停
       CAPTURE_ENABLED: ${CAPTURE_ENABLED:-false}
+      ADMIN_PATH: ${ADMIN_PATH:-/_zhlx/admin}
+      HEALTH_PATH: ${HEALTH_PATH:-/_zhlx/healthz}
       CAPTURE_ROUTES: ${CAPTURE_ROUTES:-/v1/chat/completions,/v1/responses,/v1/messages,/v1/completions}
       CAPTURE_MAX_BYTES: ${CAPTURE_MAX_BYTES:-262144}
       CAPTURE_MAX_CHARS: ${CAPTURE_MAX_CHARS:-8000}

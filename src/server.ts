@@ -65,7 +65,7 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
 
   const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     const pathname = new URL(req.url ?? '/', 'http://internal').pathname;
-    if (pathname === '/healthz') {
+    if (pathname === config.healthPath) {
       sendJson(res, 200, {
         ok: true,
         deployment_id: config.deploymentId,
@@ -75,7 +75,7 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
       });
       return;
     }
-    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    if (pathname === config.adminPath || pathname.startsWith(`${config.adminPath}/`)) {
       adminHandler(req, res);
       return;
     }

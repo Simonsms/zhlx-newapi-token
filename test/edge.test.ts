@@ -7,7 +7,7 @@ import { configFromEnv } from '../src/config.ts';
 import { openDatabase } from '../src/store/open.ts';
 import { Store } from '../src/store/store.ts';
 import type { ProxyRequestInsert } from '../src/store/types.ts';
-import { baseUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
+import { adminBase, baseUrl, healthUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
 
 function sampleRow(overrides: Partial<ProxyRequestInsert> = {}): ProxyRequestInsert {
   return {
@@ -105,7 +105,7 @@ describe('采集开关与失败路径', () => {
   async function detailFor(proxyRequestId: string): Promise<Record<string, unknown>> {
     const cookie = await login(ctx);
     return waitFor(async () => {
-      const res = await fetch(`${baseUrl(ctx)}/admin/api/requests/${proxyRequestId}`, { headers: { cookie } });
+      const res = await fetch(`${adminBase(ctx)}/api/requests/${proxyRequestId}`, { headers: { cookie } });
       if (!res.ok) return null;
       const body = (await res.json()) as { request: Record<string, unknown> };
       return body.request;
@@ -125,7 +125,7 @@ describe('采集开关与失败路径', () => {
     assert.equal(detail.prompt_text, null);
 
     const cookie = await login(ctx);
-    const quality = await fetch(`${baseUrl(ctx)}/admin/api/capture-quality`, { headers: { cookie } });
+    const quality = await fetch(`${adminBase(ctx)}/api/capture-quality`, { headers: { cookie } });
     const body = (await quality.json()) as { capture: { disabled: number } };
     assert.ok(body.capture.disabled >= 1);
   });

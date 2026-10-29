@@ -202,6 +202,7 @@
 
 <script>
 (function () {
+  var BASE = location.pathname.replace(/\/+$/, "") + "/";
   var state = { page: 1, pageSize: 25, total: 0, from: null, to: null, configured: true };
 
   function $(id) { return document.getElementById(id); }
@@ -280,7 +281,7 @@
     $("from").value = isoLocal(new Date(now.getTime() - 24 * 3600 * 1000));
     var session;
     try {
-      session = await api("/admin/session");
+      session = await api(BASE + "api/session");
     } catch (e) {
       showLogin();
       return;
@@ -302,7 +303,7 @@
   async function login() {
     $("loginError").textContent = "";
     try {
-      var res = await fetch("/admin/login", {
+      var res = await fetch(BASE + "api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: $("token").value })
@@ -328,7 +329,7 @@
   async function loadOverview() {
     var query = rangeQuery();
     var data;
-    try { data = await api("/admin/api/overview?" + query.toString()); }
+    try { data = await api(BASE + "api/overview?" + query.toString()); }
     catch (e) { return; }
     var t = data.totals;
     $("totals").innerHTML =
@@ -366,7 +367,7 @@
       statHtml("无网关 ID", fmt(a.no_gateway_id)) +
       statHtml("写入错误", fmt(data.metrics.write_errors), data.metrics.last_write_error || "");
 
-    var reasons = await api("/admin/api/capture-quality?" + query.toString()).catch(function () { return null; });
+    var reasons = await api(BASE + "api/capture-quality?" + query.toString()).catch(function () { return null; });
     if (reasons && reasons.skip_reasons.length) {
       $("skipReasons").innerHTML = "<div class=\"muted\" style=\"font-size:12px;margin-bottom:6px\">跳过原因</div>" +
         reasons.skip_reasons.map(function (r) { return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span class="mono">' + esc(r.reason) + "</span><span>" + fmt(r.count) + "</span></div>"; }).join("");
@@ -391,7 +392,7 @@
     var query = rangeQuery();
     query.set("group_by", $("groupBy").value);
     var data;
-    try { data = await api("/admin/api/usage?" + query.toString()); }
+    try { data = await api(BASE + "api/usage?" + query.toString()); }
     catch (e) { return; }
     var labels = { day: "日期", user: "账号", token: "凭证", model: "模型" };
     $("bucketHead").textContent = labels[data.group_by] || "分组";
@@ -416,7 +417,7 @@
     var q = $("q").value.trim();
     if (q) query.set("q", q);
     var data;
-    try { data = await api("/admin/api/requests?" + query.toString()); }
+    try { data = await api(BASE + "api/requests?" + query.toString()); }
     catch (e) { return; }
     state.total = data.total;
     if (!data.items.length) {
@@ -439,7 +440,7 @@
 
   async function openDetail(id) {
     var data;
-    try { data = await api("/admin/api/requests/" + encodeURIComponent(id)); }
+    try { data = await api(BASE + "api/requests/" + encodeURIComponent(id)); }
     catch (e) { return; }
     var r = data.request;
     var rows = data.usage_events.map(function (e) {
@@ -468,7 +469,7 @@
   $("loginBtn").addEventListener("click", login);
   $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") login(); });
   $("logoutBtn").addEventListener("click", async function () {
-    await fetch("/admin/logout", { method: "POST" }).catch(function () {});
+    await fetch(BASE + "api/logout", { method: "POST" }).catch(function () {});
     showLogin();
   });
   $("applyBtn").addEventListener("click", function () { state.page = 1; refreshAll(); });

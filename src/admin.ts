@@ -48,8 +48,9 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const path = url.pathname;
     const method = req.method ?? 'GET';
+    const base = config.adminPath;
 
-    if (path === '/admin' || path === '/admin/') {
+    if (path === base || path === `${base}/`) {
       if (method !== 'GET') {
         sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
         return;
@@ -62,7 +63,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/login') {
+    if (path === `${base}/login`) {
       if (method !== 'POST') {
         sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'POST' });
         return;
@@ -97,7 +98,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/logout') {
+    if (path === `${base}/logout`) {
       if (method !== 'POST') {
         sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'POST' });
         return;
@@ -106,7 +107,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/session') {
+    if (path === `${base}/session`) {
       if (method !== 'GET') {
         sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
         return;
@@ -120,7 +121,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (!path.startsWith('/admin/api/')) {
+    if (!path.startsWith(`${base}/api/`)) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
@@ -137,7 +138,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/api/overview') {
+    if (path === `${base}/api/overview`) {
       const range = parseIsoRange(url);
       if (!range.ok) {
         sendJson(res, 400, { error: range.reason });
@@ -178,7 +179,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/api/usage') {
+    if (path === `${base}/api/usage`) {
       const range = parseIsoRange(url);
       if (!range.ok) {
         sendJson(res, 400, { error: range.reason });
@@ -221,7 +222,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/api/requests') {
+    if (path === `${base}/api/requests`) {
       const range = parseIsoRange(url);
       if (!range.ok) {
         sendJson(res, 400, { error: range.reason });
@@ -265,9 +266,14 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    const detailMatch = /^\/admin\/api\/requests\/([^/]+)$/.exec(path);
-    if (detailMatch) {
-      const proxyRequestId = decodeURIComponent(detailMatch[1] ?? '');
+    const detailPrefix = `${base}/api/requests/`;
+    if (path.startsWith(detailPrefix)) {
+      const rest = path.slice(detailPrefix.length);
+      if (!rest || rest.includes('/')) {
+        sendJson(res, 404, { error: 'not_found' });
+        return;
+      }
+      const proxyRequestId = decodeURIComponent(rest);
       const result = await store.getProxyRequest(proxyRequestId, config.associationPendingWindowMs);
       if (!result) {
         sendJson(res, 404, { error: 'not_found' });
@@ -281,7 +287,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/api/capture-quality') {
+    if (path === `${base}/api/capture-quality`) {
       const range = parseIsoRange(url);
       if (!range.ok) {
         sendJson(res, 400, { error: range.reason });
@@ -297,7 +303,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       return;
     }
 
-    if (path === '/admin/api/sync') {
+    if (path === `${base}/api/sync`) {
       sendJson(res, 200, { sync: await store.getSyncState() });
       return;
     }

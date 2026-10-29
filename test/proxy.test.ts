@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { baseUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
+import { adminBase, baseUrl, healthUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
 
 describe('代理转发与 Prompt 采集', () => {
   let ctx: TestContext;
@@ -39,7 +39,7 @@ describe('代理转发与 Prompt 采集', () => {
 
     const detail = await waitFor(async () => {
       const cookie = await login(ctx);
-      const res = await fetch(`${baseUrl(ctx)}/admin/api/requests/${proxyRequestId}`, {
+      const res = await fetch(`${adminBase(ctx)}/api/requests/${proxyRequestId}`, {
         headers: { cookie },
       });
       if (!res.ok) return null;
@@ -95,7 +95,7 @@ describe('代理转发与 Prompt 采集', () => {
     const proxyRequestId = response.headers.get('x-proxy-request-id');
     const cookie = await login(ctx);
     const detail = await waitFor(async () => {
-      const res = await fetch(`${baseUrl(ctx)}/admin/api/requests/${proxyRequestId}`, { headers: { cookie } });
+      const res = await fetch(`${adminBase(ctx)}/api/requests/${proxyRequestId}`, { headers: { cookie } });
       if (!res.ok) return null;
       return (await res.json()) as { request: Record<string, unknown> };
     });
@@ -122,7 +122,7 @@ describe('代理转发与 Prompt 采集', () => {
     const proxyRequestId = response.headers.get('x-proxy-request-id');
     const detail = await waitFor(async () => {
       const cookie = await login(ctx);
-      const res = await fetch(`${baseUrl(ctx)}/admin/api/requests/${proxyRequestId}`, { headers: { cookie } });
+      const res = await fetch(`${adminBase(ctx)}/api/requests/${proxyRequestId}`, { headers: { cookie } });
       if (!res.ok) return null;
       return (await res.json()) as { request: Record<string, unknown> };
     });

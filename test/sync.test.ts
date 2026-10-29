@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { NewApiLogClient } from '../src/newapi-client.ts';
 import { LogSync } from '../src/sync.ts';
-import { baseUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
+import { adminBase, baseUrl, healthUrl, login, startTestApp, waitFor, type TestContext } from './helpers.ts';
 
 function logEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -53,7 +53,7 @@ describe('原生日志同步与用量统计', () => {
     assert.ok(state?.watermark);
 
     const cookie = await login(ctx);
-    const res = await fetch(`${baseUrl(ctx)}/admin/api/usage?group_by=user`, { headers: { cookie } });
+    const res = await fetch(`${adminBase(ctx)}/api/usage?group_by=user`, { headers: { cookie } });
     const body = (await res.json()) as {
       totals: { consume_events: number; error_events: number; prompt_tokens: number; completion_tokens: number; quota: number; active_users: number };
     };
@@ -84,7 +84,7 @@ describe('原生日志同步与用量统计', () => {
     await ctx.app.sync.syncOnce();
 
     const cookie = await login(ctx);
-    const res = await fetch(`${baseUrl(ctx)}/admin/api/overview`, { headers: { cookie } });
+    const res = await fetch(`${adminBase(ctx)}/api/overview`, { headers: { cookie } });
     const body = (await res.json()) as {
       totals: { estimated_events: number; missing_events: number };
       usage_sources: Array<{ source: string; count: number }>;
@@ -114,7 +114,7 @@ describe('原生日志同步与用量统计', () => {
 
     const cookie = await login(ctx);
     const detail = await waitFor(async () => {
-      const res = await fetch(`${baseUrl(ctx)}/admin/api/requests/${proxyRequestId}`, { headers: { cookie } });
+      const res = await fetch(`${adminBase(ctx)}/api/requests/${proxyRequestId}`, { headers: { cookie } });
       if (!res.ok) return null;
       const body = (await res.json()) as {
         request: Record<string, unknown>;
@@ -129,11 +129,11 @@ describe('原生日志同步与用量统计', () => {
     assert.equal(detail.request.completion_tokens, 88);
     assert.equal(detail.usage_events.length, 2);
 
-    const overview = await fetch(`${baseUrl(ctx)}/admin/api/overview`, { headers: { cookie } });
+    const overview = await fetch(`${adminBase(ctx)}/api/overview`, { headers: { cookie } });
     const overviewBody = (await overview.json()) as { association: { matched: number } };
     assert.ok(overviewBody.association.matched >= 1);
 
-    const list = await fetch(`${baseUrl(ctx)}/admin/api/requests?status=matched`, { headers: { cookie } });
+    const list = await fetch(`${adminBase(ctx)}/api/requests?status=matched`, { headers: { cookie } });
     const listBody = (await list.json()) as { items: Array<{ proxy_request_id: string }> };
     assert.ok(listBody.items.some((item) => item.proxy_request_id === proxyRequestId));
   });
@@ -152,7 +152,7 @@ describe('原生日志同步与用量统计', () => {
     await ctx.app.sync.syncOnce();
 
     const cookie = await login(ctx);
-    const usage = await fetch(`${baseUrl(ctx)}/admin/api/usage?group_by=day`, { headers: { cookie } });
+    const usage = await fetch(`${adminBase(ctx)}/api/usage?group_by=day`, { headers: { cookie } });
     const body = (await usage.json()) as { totals: { prompt_tokens: number } };
     assert.equal(body.totals.prompt_tokens, 100 + 100 + 1234 + 10 + 20);
   });
@@ -177,7 +177,7 @@ describe('原生日志同步与用量统计', () => {
     assert.ok(report.fetched >= 60);
     assert.equal(report.inserted, 60);
     const cookie = await login(ctx);
-    const res = await fetch(`${baseUrl(ctx)}/admin/api/usage?group_by=user`, { headers: { cookie } });
+    const res = await fetch(`${adminBase(ctx)}/api/usage?group_by=user`, { headers: { cookie } });
     const body = (await res.json()) as { breakdown: Array<{ bucket_label: string; consume_events: number }> };
     const bob = body.breakdown.find((row) => row.bucket_label === 'bob');
     assert.equal(bob?.consume_events, 60);

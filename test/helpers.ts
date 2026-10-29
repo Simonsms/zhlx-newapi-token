@@ -183,8 +183,16 @@ export function baseUrl(ctx: TestContext): string {
   return `http://127.0.0.1:${address.port}`;
 }
 
+export function adminBase(ctx: TestContext): string {
+  return `${baseUrl(ctx) ?? ''}${ctx.config.adminPath}`;
+}
+
+export function healthUrl(ctx: TestContext): string {
+  return `${baseUrl(ctx)}${ctx.config.healthPath}`;
+}
+
 export async function login(ctx: TestContext, token = 'test-admin-token'): Promise<string> {
-  const response = await fetch(`${baseUrl(ctx)}/admin/login`, {
+  const response = await fetch(`${baseUrl(ctx)}${ctx.config.adminPath}/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ token }),
