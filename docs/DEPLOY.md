@@ -106,12 +106,19 @@ networks:
 | Compose 文件 | `docker-compose.standalone.yml` |
 | 镜像 | `zhlx-newapi-token:0.1.0` |
 | 容器 | `zhlx-newapi-token`，`restart: unless-stopped` |
-| 端口 | 宿主机 `50086` → 容器 `8080` |
+| 入口端口 | 宿主机 `50085`（原 New API 入口，现由代理接管） |
+| New API 端口 | 改为 `127.0.0.1:50091:3000`，仅本机可访问，禁止绕过代理 |
 | 网络 | 加入 `new-api_default`，上游为 `http://new-api:3000` |
+| 管理入口 | `/_zhlx/admin`（避开 New API 自身的 `/admin`） |
+| 健康检查 | `/_zhlx/healthz` |
 | 本服务数据库 | `/home/ubuntu/zhlx-newapi-token/data/zhlx.db`（SQLite） |
 | 凭据 | 同目录 `.env`（权限 600），含随机生成的 `ADMIN_API_TOKEN` 与 `SESSION_SECRET` |
-| 正文采集 | 已开启（`CAPTURE_ENABLED=true`，2026-10-29 验证采集链路后启用） |
+| 正文采集 | 已开启（`CAPTURE_ENABLED=true`） |
 | 日志同步 | 开启，只读挂载 `/home/ubuntu/new-api/data` |
+
+> 2026-10-29 变更：应将使用方要求，代理从 50086 迁到 50085 接管入口。New API 的 compose 文件已备份为 `docker-compose.yml.bak-20261029`，回退时恢复该文件并 `docker compose up -d` 即可。
+
+原 50086 端口的临时实例已随 compose 重配消失；如需并存验证，可另行指定端口启动第二份容器。
 
 采集范围与上限由 `.env` 控制，改完执行 `docker compose -f docker-compose.standalone.yml up -d` 生效：
 
@@ -139,26 +146,39 @@ grep ^ADMIN_API_TOKEN .env        # 登录管理页所需令牌
 
 | 检查 | 结果 |
 |---|---|
-| `GET /healthz` | 200，`capture_enabled:false`，队列为空 |
-| `GET /admin` | 200 |
-| 未认证访问 `/admin/api/overview` | 401 |
+| `GET /_zhlx/healthz` | 200，`capture_enabled:true`，队列为空 |
+| `GET /_zhlx/admin` | 200 |
+| New API 原站 `/`、`/console`、`/api/status` | 均 200，页面与接口不受影响 |
+| 未认证访问管理 API | 401 |
 | 经代理访问 `/v1/models` | 401（透传 New API 鉴权结果，链路通） |
 | 首次全量同步 | 71,763 条，包含历史 7 个月数据 |
 | 归属口径 | 自动判定为 `token`（1 个账号 / 29 个凭证） |
-| Prompt 采集 | 已用真实请求验证：`/v1/responses` 文本入库，邮箱与密钥被替换为 `[REDACTED:*]` |
-| 请求关联 | 同一次请求的网关 ID 与原生日志匹配成功，Token 数 4427/71 与源库完全一致 |
+| Prompt 采集 | 经 50085 真实请求验证：文本入库，手机号与邮箱被替换为 `[REDACTED:*]` |
+| 请求关联 | 网关 ID 与原生日志匹配成功，Token 数 4410/19、quota 171075 与源库一致 |
+| 流量过滤 | 访问 `/`、`/console`、`/api/status` 后采集表无新增记录 |
 
 与源库直查对比时出现 1~2 条差额，原因是源库持续有新请求写入，而同步只覆盖到「当前时间 − 30 秒安全滞后」的窗口；下一轮 5 分钟同步会自动追平。这是预期行为，不是丢数据。
 
 ## 采集生效的前提
 
-代理只在请求**经过本服务**时采集。当前客户端仍直连 `50085`，因此除非把入口切到 `50086`，否则不会产生新的 Prompt 记录。已采集到的样本是通过 `50086` 主动发起的验证请求。
+代理只在请求**经过本服务**时采集。2026-10-29 已把 50085 入口切换给代理，New API 后端改为仅本机监听，因此现有客户端的调用会自然经过采集链路，无需修改客户端配置或渠道设置。
 
-切换前需确认：
+仍需确认：
 
-1. 对外域名/TLS 入口指向本服务，而不是直接指向 `50085`。
-2. 安全组或防火墙未放通 `50085` 直连，避免绕过采集。
-3. 正文采集的用途、告知与保留期已按内部要求落实。
+1. 安全组未放通 New API 的其他端口，避免绕过代理直连。
+2. 正文采集的用途、告知与保留期已按内部要求落实。
+3. 渠道（如 `zhlx-gpt`）的上游地址保持指向真实模型服务，**不要**改成代理端口，否则会形成回环。
+
+## 回退方式
+
+```bash
+cd /home/ubuntu/new-api
+cp docker-compose.yml.bak-20261029 docker-compose.yml
+sudo docker compose up -d
+cd ~/zhlx-newapi-token && sudo docker compose -f docker-compose.standalone.yml down
+```
+
+回退后 50085 恢复为 New API 直接提供，采集停止，已采数据保留在 `data/zhlx.db`。
 
 ## 仍未确认
 
