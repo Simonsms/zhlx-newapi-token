@@ -217,6 +217,19 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
         duration_ms: Date.now() - startedAt,
       };
 
+      logger.info('inference_request', {
+        proxy_request_id: proxyRequestId,
+        path: pathname,
+        model,
+        status: httpStatus,
+        outcome,
+        capture: captureStatus,
+        skip_reason: skipReason,
+        prompt_chars: promptChars,
+        gateway_id: newapiRequestId,
+        duration_ms: row.duration_ms,
+      });
+
       writer.enqueue(row, promptText !== null);
     };
 
