@@ -1,0 +1,15 @@
+{
+  "id": "10-29-prompt-capture-policy",
+  "name": "prompt-capture-policy",
+  "title": "Prompt 采集范围与大输入处理",
+  "description": "明确用户文本、代码、附件与工具结果的采集范围，修正历史回填，补齐有界节选、实际字节计量、降级展示及验证证据。",
+  "status": "implemented",
+  "priority": "P1",
+  "createdAt": "2026-10-29",
+  "completedAt": null,
+  "assignee": "zcode",
+  "prd": "prd.md",
+  "sourceBaseline": "f8ffcb6",
+  "implementationRoot": "E:/zhlx-platform-ai/ai-3-years/confabtest/zhlx-newapi-token",
+  "notes": "T1–T4 已实现，提取版本升至 extract-v2、脱敏升至 redact-v2。本地 75 项测试通过；生产已完成一次真实请求验证。未标记完成：A12/A14 的生产环境流式与故障演练、PostgreSQL 迁移实测、以及正文口径的业务确认仍待补。交付说明见 report.md。"
+}

@@ -75,6 +75,16 @@ const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_admin_audit_at ON admin_audit (occurred_at)`,
     ],
   },
+  {
+    version: 2,
+    statements: [
+      // 实际观察到的请求体字节数与是否读完整；用于替代 Token 估算。
+      `ALTER TABLE proxy_request ADD COLUMN request_bytes BIGINT`,
+      `ALTER TABLE proxy_request ADD COLUMN request_bytes_complete INTEGER`,
+      // 附件／工具结果的有限概要（白名单字段的 JSON），不含原始引用。
+      `ALTER TABLE proxy_request ADD COLUMN content_summary TEXT`,
+    ],
+  },
 ];
 
 export async function migrate(db: Db): Promise<void> {

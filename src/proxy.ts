@@ -3,9 +3,9 @@ import http from 'node:http';
 import https from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Config } from './config.ts';
-import { extractPrompt, EXTRACTION_VERSION } from './extractor.ts';
+import { extractPrompt, EXTRACTION_VERSION, type ContentSummary } from './extractor.ts';
 import type { Logger } from './logger.ts';
-import { REDACTION_VERSION, redactPrompt } from './redact.ts';
+import { excerptHeadTail, REDACTION_VERSION, redactPrompt } from './redact.ts';
 import type { ProxyWriter } from './store/writer.ts';
 import type { CaptureStatus, ProxyRequestInsert, TransportOutcome } from './store/types.ts';
 import {
@@ -61,11 +61,17 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     const shouldRecord = captureRoute;
     const contentType = req.headers['content-type'];
     const contentEncoding = req.headers['content-encoding'];
+    // 采集关闭时既不复制也不解析正文，只做字节计量与转发。
     const teeEligible =
-      captureRoute && isJsonContentType(contentType) && (!contentEncoding || contentEncoding === 'identity');
+      config.captureEnabled &&
+      captureRoute &&
+      isJsonContentType(contentType) &&
+      (!contentEncoding || contentEncoding === 'identity');
 
     const chunks: Buffer[] = [];
     let capturedBytes = 0;
+    // 实际经过代理的请求体字节数（不含 HTTP 头与分块开销），与采集上限无关。
+    let observedBytes = 0;
     let overLimit = false;
     let budgetDenied = false;
     let reservedBytes = 0;
@@ -121,15 +127,19 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
       let redactionVersion: string | null = null;
       let model: string | null = null;
       let isStream: number | null = null;
+      let contentSummary: ContentSummary | null = null;
 
       let parsedBody: unknown = null;
       let parsedOk = false;
-      if (teeEligible && !overLimit && bodyComplete) {
+      if (teeEligible && !overLimit && !budgetDenied && bodyComplete) {
         try {
           parsedBody = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           parsedOk = true;
         } catch {
           parsedOk = false;
+        } finally {
+          // 解析完成后立即释放缓冲引用，避免大请求在 finalize 期间继续占内存。
+          chunks.length = 0;
         }
       }
       if (parsedOk && typeof parsedBody === 'object' && parsedBody !== null) {
@@ -173,17 +183,19 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
         skipReason = 'invalid_json';
       } else {
         const extracted = extractPrompt(pathname, parsedBody);
+        contentSummary = extracted.summary;
         if (!extracted.ok) {
           captureStatus = 'skipped';
           skipReason = extracted.reason;
         } else {
           try {
+            // 顺序固定：先脱敏再节选，避免截断破坏密钥/私钥结构导致规则失效。
             const redacted = redactPrompt(extracted.text);
-            const truncated = redacted.text.length > config.captureMaxChars;
-            promptText = truncated ? redacted.text.slice(0, config.captureMaxChars) : redacted.text;
+            const excerpt = excerptHeadTail(redacted.text, config.captureMaxChars);
+            promptText = excerpt.text;
             promptChars = promptText.length;
-            promptTruncated = truncated ? 1 : 0;
-            promptScope = extracted.scope;
+            promptTruncated = excerpt.truncated ? 1 : 0;
+            promptScope = excerpt.truncated ? `${extracted.scope}+excerpt` : extracted.scope;
             extractionVersion = EXTRACTION_VERSION;
             redactionVersion = REDACTION_VERSION;
             captureStatus = 'captured';
@@ -215,6 +227,9 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
         model,
         is_stream: isStream,
         duration_ms: Date.now() - startedAt,
+        request_bytes: observedBytes,
+        request_bytes_complete: bodyComplete ? 1 : 0,
+        content_summary: contentSummary === null ? null : JSON.stringify(contentSummary),
       };
 
       logger.info('inference_request', {
@@ -226,6 +241,12 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
         capture: captureStatus,
         skip_reason: skipReason,
         prompt_chars: promptChars,
+        prompt_truncated: promptTruncated,
+        scope: promptScope,
+        request_bytes: observedBytes,
+        request_bytes_complete: bodyComplete,
+        attachments: contentSummary?.attachment_count ?? 0,
+        tool_result: contentSummary?.has_tool_result ?? false,
         gateway_id: newapiRequestId,
         duration_ms: row.duration_ms,
       });
@@ -239,6 +260,8 @@ export function createProxyHandler(deps: ProxyDeps): (req: IncomingMessage, res:
     };
 
     req.on('data', (chunk: Buffer) => {
+      // 计量始终基于实际收到的数据块，与是否采集、是否超限无关。
+      observedBytes += chunk.length;
       if (teeEligible && !overLimit && !budgetDenied) {
         if (reservedBytes === 0) {
           if (reserveCaptureBudget(budget, config.captureMaxBytes)) {

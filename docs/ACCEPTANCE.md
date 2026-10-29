@@ -28,11 +28,17 @@
 ## 任务三：受控 Prompt 采集与脱敏检索
 
 - [x] 默认关闭；关闭时全链路无正文（`test/edge.test.ts`）
-- [x] 仅提取最后一条 user 文本，system/assistant 不采（`test/unit.test.ts`、`test/proxy.test.ts`）
-- [x] 凭证、邮箱、手机号、私钥等在持久化前脱敏（`test/unit.test.ts`）
-- [x] 超过采集上限跳过正文但完整转发请求（`test/proxy.test.ts`）
-- [x] 上游非 2xx 不采正文（`test/edge.test.ts`）
+- [x] 按协议识别角色与内容类型，只取最后一条 user 的普通文本（`test/extraction.test.ts`）
+- [x] 最新输入只有图片／附件／工具结果时不回填历史问题（`test/extraction.test.ts`）
+- [x] 工具结果内的 text 不与普通用户文本混采（`test/extraction.test.ts`）
+- [x] 未知内容类型即使带 text 字段也不采信（`test/extraction.test.ts`）
+- [x] 凭证、邮箱、手机号、私钥、签名 URL、本地路径在持久化前脱敏（`test/extraction.test.ts`）
+- [x] 长文本按头尾节选，省略标记计入预算且不切出残缺字符（`test/extraction.test.ts`）
+- [x] 超过采集上限跳过正文但完整转发请求（`test/proxy.test.ts`、`test/capture-policy.test.ts`）
+- [x] 记录实际观察请求体字节与读取完整标记（`test/capture-policy.test.ts`）
+- [x] 上游非 2xx 不采正文（`test/edge.test.ts`、`test/capture-policy.test.ts`）
 - [x] 正文队列满降级为 `dropped` 元数据（`test/edge.test.ts`）
+- [x] 并发采集预算耗尽后推理继续，预算可回收（`test/capture-policy.test.ts`）
 - [x] 保留期到期置空正文并标记 `expired`（`test/edge.test.ts`）
 - [x] 非管理员不能读详情且不写审计；授权读取写审计（`test/admin.test.ts`）
 
@@ -47,8 +53,10 @@
 
 ## 尚未执行
 
+- 生产环境 SSE 首段即时到达与取消链路演练（本地已测）
+- 生产环境队列满、写库故障、分析库断开的故障演练
+- PostgreSQL 迁移实测（本地仅 SQLite）
 - 内网一人一账号环境的接入验证（`IDENTITY_MODE=user`）
-- 真实账号/Key 分配与共享 Key 比例的现场确认：已确认测试环境为共享 admin 账号
 - 容量压测、脱敏准确率评测、删除演练
-- 真实浏览器的管理界面交互测试（已做 HTML/脚本语法与 HTTP 冒烟）
+- 真实浏览器的管理界面交互测试（已做 HTML/脚本语法、HTTP 冒烟与合成样例视觉验收）
 - 第二阶段离线分类

@@ -7,86 +7,192 @@
 <title>New API 用量与 Prompt 采集</title>
 <style>
   :root {
-    --bg: #0f1419;
-    --panel: #161c23;
-    --panel-2: #1c242d;
-    --line: #29333e;
-    --text: #e6edf3;
-    --muted: #8b98a5;
-    --accent: #4f9cf9;
-    --good: #3fb950;
-    --warn: #d29922;
-    --bad: #f85149;
+    --dp-color-ground: #f5efdf;
+    --dp-color-ink: #1e382c;
+    --dp-color-panel: #e0e5d3;
+    --dp-color-warm-field: #e6cbb8;
+    --dp-color-accent: #895440;
+    --dp-color-rule: #d4d0bd;
+    --dp-color-ornament-line: #b5baa4;
+    --dp-color-field-line: #697961;
+    --dp-typography-display: "EB Garamond", "Botanical Garamond", Georgia, serif;
+    --dp-typography-reading: "Instrument Sans", "Botanical Instrument", sans-serif;
+    --dp-typography-body: 16px;
+    --dp-typography-metadata: 13px;
+    --dp-typography-label: 12px;
+    --dp-typography-compact-leading: 1.5;
+    --dp-typography-label-tracking: 0.12em;
+    --dp-spacing-panel-inline: max(30px, 4.2cqw);
+    --dp-radius-panel: 34px;
+    --dp-radius-panel-narrow: 27px;
+    --dp-radius-round: 50%;
+    --dp-border-hairline: 1px;
+    --dp-motion-interaction: 0.35s;
+    --dp-motion-easing: ease;
   }
   * { box-sizing: border-box; }
+  html { background: var(--dp-color-ground); }
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(181, 186, 164, 0.16), transparent 45%),
+      radial-gradient(circle at 88% 78%, rgba(137, 84, 64, 0.07), transparent 40%),
+      var(--dp-color-ground);
+    color: var(--dp-color-ink);
+    font: var(--dp-typography-body)/1.65 var(--dp-typography-reading);
   }
   header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
+    padding: 26px var(--dp-spacing-panel-inline) 18px;
+    border-bottom: var(--dp-border-hairline) solid var(--dp-color-rule);
   }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  header .meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; align-items: center; }
-  main { padding: 20px 22px 60px; max-width: 1400px; margin: 0 auto; }
+  header h1 {
+    font-family: var(--dp-typography-display);
+    font-size: clamp(24px, 2.4vw, 34px);
+    font-weight: 400; letter-spacing: -0.012em; margin: 0;
+  }
+  header .meta {
+    color: var(--dp-color-ink); font-size: var(--dp-typography-metadata);
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  main { padding: 26px var(--dp-spacing-panel-inline) 70px; max-width: 1440px; margin: 0 auto; }
   .hidden { display: none !important; }
+
   button, input, select {
-    font: inherit; color: var(--text); background: var(--panel-2);
-    border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px;
+    font: inherit; font-size: var(--dp-typography-metadata);
+    color: var(--dp-color-ink); background: rgba(255, 255, 255, 0.55);
+    border: var(--dp-border-hairline) solid var(--dp-color-rule);
+    border-radius: 999px; padding: 9px 16px;
+    transition: background var(--dp-motion-interaction) var(--dp-motion-easing),
+                border-color var(--dp-motion-interaction) var(--dp-motion-easing),
+                transform var(--dp-motion-interaction) var(--dp-motion-easing);
   }
+  select, input[type="datetime-local"] { border-radius: 999px; }
+  input::placeholder { color: #8c937f; }
   button { cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
-  button.ghost { background: transparent; }
-  label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px; }
-  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  button:hover { border-color: var(--dp-color-accent); transform: translateY(-1px); }
+  button:focus-visible, input:focus-visible, select:focus-visible,
+  a.link:focus-visible {
+    outline: 2px solid var(--dp-color-accent);
+    outline-offset: 3px;
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  button.primary {
+    background: var(--dp-color-ink); border-color: var(--dp-color-ink);
+    color: var(--dp-color-ground); font-weight: 600;
+  }
+  button.primary:hover { background: #16291f; }
+  button.ghost { background: transparent; border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+  button.ghost:hover { border-color: transparent; color: var(--dp-color-accent); }
+
+  label {
+    color: #55604f; font-size: var(--dp-typography-label);
+    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+    display: block; margin-bottom: 6px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+
   .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 16px; margin-bottom: 16px;
+    background: var(--dp-color-panel);
+    border: var(--dp-border-hairline) solid rgba(105, 121, 97, 0.28);
+    border-radius: var(--dp-radius-panel);
+    padding: 26px var(--dp-spacing-panel-inline);
+    margin-bottom: 22px;
   }
-  .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-  .stat .k { color: var(--muted); font-size: 12px; }
-  .stat .v { font-size: 21px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .stat .s { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  .card.bare { background: transparent; border: none; padding-left: 0; padding-right: 0; }
+  .card h2 {
+    font-family: var(--dp-typography-display);
+    font-size: 22px; font-weight: 400; letter-spacing: -0.01em;
+    margin: 0 0 16px; color: var(--dp-color-ink); text-transform: none;
+  }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 14px; }
+  .stat {
+    background: rgba(255, 255, 255, 0.5);
+    border: var(--dp-border-hairline) solid rgba(105, 121, 97, 0.22);
+    border-radius: var(--dp-radius-panel-narrow);
+    padding: 16px 18px;
+  }
+  .stat .k {
+    color: #55604f; font-size: var(--dp-typography-label);
+    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+  }
+  .stat .v {
+    font-family: var(--dp-typography-display);
+    font-size: 30px; font-weight: 400; margin-top: 4px;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+  }
+  .stat .s { color: #55604f; font-size: 12px; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: var(--dp-typography-metadata); }
+  th, td { text-align: left; padding: 11px 12px; border-bottom: var(--dp-border-hairline) solid var(--dp-color-rule); vertical-align: top; }
+  th {
+    color: #55604f; font-weight: 500; font-size: var(--dp-typography-label); white-space: nowrap;
+    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+  }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody tr:hover { background: var(--panel-2); }
-  .tag { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 11px; border: 1px solid var(--line); color: var(--muted); }
-  .tag.good { color: var(--good); border-color: #1f4429; background: #12261a; }
-  .tag.warn { color: var(--warn); border-color: #3d3315; background: #241f10; }
-  .tag.bad { color: var(--bad); border-color: #4a1f1f; background: #2a1414; }
-  .muted { color: var(--muted); }
-  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
-  .login { max-width: 360px; margin: 12vh auto; }
-  .login input { width: 100%; margin-bottom: 10px; }
-  .error { color: var(--bad); font-size: 13px; min-height: 20px; }
-  .prompt {
-    white-space: pre-wrap; word-break: break-word; background: var(--panel-2);
-    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
-    max-height: 340px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px;
+  tbody tr { transition: background var(--dp-motion-interaction) var(--dp-motion-easing); }
+  tbody tr:hover { background: rgba(255, 255, 255, 0.42); }
+
+  .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: var(--dp-typography-label); letter-spacing: 0.03em;
+    border: var(--dp-border-hairline) solid var(--dp-color-ornament-line);
+    color: #55604f; background: rgba(255, 255, 255, 0.4);
   }
-  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; }
-  @media (max-width: 980px) { .split { grid-template-columns: 1fr; } }
-  a.link { color: var(--accent); cursor: pointer; text-decoration: none; }
-  a.link:hover { text-decoration: underline; }
-  .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+  .tag.good { color: #24402f; border-color: #8fae95; background: #d8e6d6; }
+  .tag.warn { color: var(--dp-color-accent); border-color: #cda98f; background: #f0ded1; }
+  .tag.bad { color: #7c2d22; border-color: #c99b94; background: #f2dcd7; }
+  .muted { color: #55604f; }
+  .mono { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+
+  .login { max-width: 420px; margin: 10vh auto; }
+  .login input { width: 100%; margin-bottom: 14px; border-radius: 14px; padding: 12px 14px; }
+  .error { color: #7c2d22; font-size: var(--dp-typography-metadata); min-height: 22px; }
+
+  .prompt {
+    white-space: pre-wrap; word-break: break-word;
+    background: rgba(255, 255, 255, 0.58);
+    border: var(--dp-border-hairline) solid var(--dp-color-rule);
+    border-radius: var(--dp-radius-panel-narrow);
+    padding: 18px; max-height: 360px; overflow: auto;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px; line-height: 1.7;
+  }
+  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 22px; }
+  @media (max-width: 1120px) { .split { grid-template-columns: 1fr; } }
+  a.link { color: var(--dp-color-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  a.link:hover { color: var(--dp-color-ink); }
+  .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 16px; }
   .close { float: right; }
-  details summary { cursor: pointer; color: var(--accent); }
-  .bar { height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 6px; }
-  .bar > div { height: 100%; background: var(--accent); }
-  .notice { border-left: 3px solid var(--warn); padding: 8px 12px; background: #241f10; border-radius: 6px; color: #e3c67d; font-size: 12.5px; margin-bottom: 14px; }
+  details summary { cursor: pointer; color: var(--dp-color-accent); }
+  .bar { height: 8px; background: rgba(255, 255, 255, 0.55); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; background: var(--dp-color-ornament-line); }
+  .notice {
+    border-left: 3px solid var(--dp-color-accent); padding: 10px 16px;
+    background: var(--dp-color-warm-field); border-radius: 14px;
+    color: #52301f; font-size: var(--dp-typography-metadata); margin-bottom: 18px;
+  }
+  .lede { max-width: 62ch; color: #3f4b3c; font-size: 15px; margin: 0 0 22px; }
+  .ornament {
+    height: var(--dp-border-hairline); background: var(--dp-color-ornament-line);
+    max-width: 92px; margin: 0 0 18px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none !important;
+      animation: none !important;
+      transform: none !important;
+    }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>New API 用量与 Prompt 采集</h1>
+  <div>
+    <div class="ornament"></div>
+    <h1>New API 用量与 Prompt 采集</h1>
+  </div>
   <div class="meta">
     <span id="deployment"></span>
     <span id="captureflag"></span>
@@ -97,6 +203,7 @@
 <main>
   <section id="loginView" class="login card hidden">
     <h2>管理员登录</h2>
+    <p class="lede">查看原生用量、采集范围与请求本体结果。</p>
     <label for="token">管理员令牌</label>
     <input id="token" type="password" autocomplete="current-password" placeholder="ADMIN_API_TOKEN">
     <button class="primary" id="loginBtn">登录</button>
@@ -136,14 +243,21 @@
       <p class="muted" id="totalsNote" style="font-size:12px;margin:6px 0 0"></p>
     </div>
 
+    <div class="card">
+      <h2>正文结果分布</h2>
+      <p class="lede">分母是本区间进入采集范围的推理请求。主动省略与资源受限、系统故障分开计数；历史 extract-v1 记录按原含义展示，不重写。</p>
+      <div class="stats" id="outcomes"></div>
+      <p class="muted" id="outcomeNote" style="font-size:12px;margin:12px 0 0"></p>
+    </div>
+
     <div class="split">
       <div class="card">
         <h2>采集与关联质量</h2>
         <div class="stats" id="quality"></div>
-        <div id="skipReasons" style="margin-top:12px"></div>
+        <div id="skipReasons" style="margin-top:16px"></div>
       </div>
       <div class="card">
-        <h2>日志同步</h2>
+        <h2>请求体计量与同步</h2>
         <div class="stats" id="syncStats"></div>
         <p class="muted" id="syncError" style="font-size:12px;margin:10px 0 0"></p>
       </div>
@@ -258,10 +372,36 @@
     var m = map[status] || [status, ""];
     return tag(m[0], m[1]);
   }
-  function captureTag(status) {
-    var map = { captured: ["已采集", "good"], disabled: ["未启用", ""], skipped: ["已跳过", "warn"], dropped: ["队列丢弃", "bad"], expired: ["已过期", ""] };
-    var m = map[status] || [status, ""];
-    return tag(m[0], m[1]);
+  /**
+   * 正文结果标签：把底层状态归并为"已采集文本／已截断／仅元数据／资源受限／故障"，
+   * 让管理员能把主动省略与资源、系统问题分开看。
+   */
+  function bodyTag(item) {
+    var status = item.capture_status;
+    var reason = item.skip_reason || "";
+    if (status === "captured") {
+      return item.prompt_truncated ? tag("已截断", "warn") : tag("已采集文本", "good");
+    }
+    if (status === "disabled") return tag("采集关闭", "");
+    if (status === "expired") return tag("已过期", "");
+    if (status === "dropped") return tag("资源受限", "bad");
+    if (status === "skipped") {
+      if (reason === "over_limit" || reason === "capture_budget_exhausted" || reason === "incomplete_request_body") {
+        return tag("资源受限", "bad");
+      }
+      if (reason === "invalid_json" || reason === "redaction_failed") {
+        return tag("采集故障", "bad");
+      }
+      if (reason === "upstream_status" || reason === "no_upstream_response") {
+        return tag("上游未成功", "warn");
+      }
+      if (reason === "tool_result_only") return tag("仅元数据", "warn");
+      if (reason === "attachment_only") return tag("仅元数据", "warn");
+      if (reason === "unknown_content_only") return tag("仅元数据", "warn");
+      if (reason === "no_user_text") return tag("仅元数据", "");
+      return tag("仅元数据", "warn");
+    }
+    return tag(status || "未知", "");
   }
 
   function showLogin() {
@@ -281,7 +421,7 @@
     $("from").value = isoLocal(new Date(now.getTime() - 24 * 3600 * 1000));
     var session;
     try {
-      session = await api(BASE + "api/session");
+      session = await api(BASE + "session");
     } catch (e) {
       showLogin();
       return;
@@ -303,7 +443,7 @@
   async function login() {
     $("loginError").textContent = "";
     try {
-      var res = await fetch(BASE + "api/login", {
+      var res = await fetch(BASE + "login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token: $("token").value })
@@ -375,6 +515,33 @@
       $("skipReasons").innerHTML = "";
     }
 
+    if (reasons && reasons.outcomes) {
+      var o = reasons.outcomes;
+      $("outcomes").innerHTML =
+        statHtml("已采集文本", fmt(o.text), "完整保存") +
+        statHtml("已截断节选", fmt(o.excerpt), "头尾节选") +
+        statHtml("仅元数据", fmt(o.metadata), "主动省略附件/工具/无文本") +
+        statHtml("资源受限", fmt(o.limit), "超限或预算不足") +
+        statHtml("解析或脱敏失败", fmt(o.failure)) +
+        statHtml("采集关闭", fmt(o.disabled)) +
+        statHtml("已过期", fmt(o.expired));
+      var b = reasons.request_bytes;
+      var totalRequests = c.total || 0;
+      var mb = b.observed_bytes > 0 ? (b.observed_bytes / 1048576).toFixed(1) + " MiB" : "0 MiB";
+      $("outcomeNote").textContent =
+        "实际观察请求体合计 " + mb + "，最大单请求 " + fmt(b.max_bytes) + " B，读取完整 " + fmt(b.complete) +
+        " 条、未读完 " + fmt(b.incomplete) + " 条。分母为 " + fmt(totalRequests) +
+        " 条进入采集范围的推理请求；这些字节不含 HTTP 头，也不等于 Token。";
+      var versions = (reasons.extraction_versions || []);
+      if (versions.length) {
+        $("outcomeNote").textContent += " 提取版本：" +
+          versions.map(function (v) { return v.version + " " + v.count + " 条"; }).join("，") + "。";
+      }
+    } else {
+      $("outcomes").innerHTML = "";
+      $("outcomeNote").textContent = "";
+    }
+
     var s = data.sync;
     if (s) {
       $("syncStats").innerHTML =
@@ -424,9 +591,12 @@
       $("requestsBody").innerHTML = '<tr><td colspan="7" class="muted">暂无采集请求</td></tr>';
     } else {
       $("requestsBody").innerHTML = data.items.map(function (item) {
-        var promptCell = item.prompt_text === null ? '<span class="muted">—</span>' : '<a class="link" data-id="' + esc(item.proxy_request_id) + '">查看</a>';
+        var hasPrompt = item.prompt_text !== null && item.prompt_text !== undefined;
+        var promptCell = hasPrompt
+          ? '<a class="link" data-id="' + esc(item.proxy_request_id) + '">' + (item.prompt_truncated ? "查看节选" : "查看") + '</a>'
+          : '<span class="muted">仅元数据</span>';
         return "<tr><td class=\"mono\">" + esc(new Date(item.received_at).toLocaleString("zh-CN")) + "</td><td class=\"mono\">" + esc(item.path) +
-          "</td><td>" + esc(item.model || "—") + "</td><td>" + captureTag(item.capture_status) +
+          "</td><td>" + esc(item.model || "—") + "</td><td>" + bodyTag(item) +
           (item.skip_reason ? ' <span class="muted mono" style="font-size:11px">' + esc(item.skip_reason) + "</span>" : "") +
           "</td><td>" + assocTag(item.association_status) + "</td><td>" + promptCell +
           "</td><td class=\"mono\" style=\"font-size:11px\">" + esc(item.newapi_request_id || "—") + "</td></tr>";
@@ -452,6 +622,21 @@
     }).join("");
     $("detailEvents").innerHTML = rows || '<tr><td colspan="7" class="muted">暂无原生消费事件</td></tr>';
     $("detailPrompt").textContent = r.prompt_text || "（无已保存的 Prompt）";
+    var summary = r.content_summary || {};
+    var bytes = r.request_bytes === null || r.request_bytes === undefined
+      ? "未记录"
+      : Number(r.request_bytes).toLocaleString("zh-CN") + " B" + (r.request_bytes_complete ? "" : "（未读完）");
+    var extras = [];
+    if (summary.attachment_count) {
+      extras.push("附件 " + summary.attachment_count + " 个：" + (summary.attachment_types || []).join("、"));
+    }
+    if (summary.has_tool_result) extras.push("含工具结果（正文不保存）");
+    if (summary.has_unknown_content) {
+      extras.push("含未知块：" + ((summary.unknown_types || []).join("、") || "未识别"));
+    }
+    if (summary.declared_bytes !== null && summary.declared_bytes !== undefined) {
+      extras.push("附件声明大小 " + Number(summary.declared_bytes).toLocaleString("zh-CN") + " B");
+    }
     $("detailMeta").textContent = [
       "本地请求 ID：" + r.proxy_request_id,
       "网关请求 ID：" + (r.newapi_request_id || "无"),
@@ -459,9 +644,12 @@
       "传输终态：" + r.transport_outcome,
       "采集：" + r.capture_status + (r.skip_reason ? "（" + r.skip_reason + "）" : ""),
       "提取范围：" + (r.prompt_scope || "—"),
+      "提取版本：" + (r.extraction_version || "无"),
       "截断：" + (r.prompt_truncated ? "是" : "否"),
+      "请求体：" + bytes,
       "耗时：" + (r.duration_ms || 0) + " ms"
     ].join("　|　");
+    if (extras.length) $("detailMeta").textContent += "　|　" + extras.join("；");
     $("detailCard").classList.remove("hidden");
     $("detailCard").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -469,7 +657,7 @@
   $("loginBtn").addEventListener("click", login);
   $("token").addEventListener("keydown", function (e) { if (e.key === "Enter") login(); });
   $("logoutBtn").addEventListener("click", async function () {
-    await fetch(BASE + "api/logout", { method: "POST" }).catch(function () {});
+    await fetch(BASE + "logout", { method: "POST" }).catch(function () {});
     showLogin();
   });
   $("applyBtn").addEventListener("click", function () { state.page = 1; refreshAll(); });

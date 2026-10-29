@@ -14,7 +14,10 @@ describe('Prompt 提取', () => {
         { role: 'user', content: [{ type: 'text', text: 'second' }] },
       ],
     });
-    assert.deepEqual(result, { ok: true, text: 'second', scope: 'last_user_message' });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.text, 'second');
+    assert.equal(result.scope, 'last_user_message');
   });
 
   it('支持 Responses input 结构', () => {
@@ -23,12 +26,18 @@ describe('Prompt 提取', () => {
         { role: 'user', content: [{ type: 'input_text', text: 'hello responses' }] },
       ],
     });
-    assert.deepEqual(result, { ok: true, text: 'hello responses', scope: 'responses_input' });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.text, 'hello responses');
+    assert.equal(result.scope, 'responses_input');
   });
 
   it('支持 legacy completions 字符串 prompt', () => {
     const result = extractPrompt('/v1/completions', { prompt: 'legacy prompt' });
-    assert.deepEqual(result, { ok: true, text: 'legacy prompt', scope: 'completion_prompt' });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.text, 'legacy prompt');
+    assert.equal(result.scope, 'completion_prompt');
   });
 
   it('无用户文本时返回明确原因', () => {

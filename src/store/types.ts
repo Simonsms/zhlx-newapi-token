@@ -12,6 +12,17 @@ export type UsageSource = 'reported' | 'estimated' | 'missing';
 
 export type AssociationStatus = 'matched' | 'pending' | 'unmatched' | 'no_gateway_id';
 
+export type BodyOutcome = 'text' | 'excerpt' | 'metadata' | 'limit' | 'failure' | 'disabled' | 'dropped' | 'expired';
+
+export interface ContentSummaryView {
+  attachment_count: number;
+  attachment_types: string[];
+  has_tool_result: boolean;
+  has_unknown_content: boolean;
+  unknown_types: string[];
+  declared_bytes: number | null;
+}
+
 export interface ProxyRequestInsert {
   proxy_request_id: string;
   deployment_id: string;
@@ -32,6 +43,9 @@ export interface ProxyRequestInsert {
   model: string | null;
   is_stream: number | null;
   duration_ms: number | null;
+  request_bytes?: number | null;
+  request_bytes_complete?: number | null;
+  content_summary?: string | null;
 }
 
 export interface UsageEventInsert {
@@ -55,7 +69,10 @@ export interface UsageEventInsert {
   synced_at: string;
 }
 
-export interface ProxyRequestRecord extends ProxyRequestInsert {
+export interface ProxyRequestRecord extends Omit<ProxyRequestInsert, 'content_summary' | 'request_bytes' | 'request_bytes_complete'> {
+  request_bytes: number | null;
+  request_bytes_complete: number | null;
+  content_summary: ContentSummaryView | null;
   usage_event_count: number;
   prompt_tokens: number | null;
   completion_tokens: number | null;
@@ -139,6 +156,17 @@ export interface CaptureStats {
   dropped: number;
   expired: number;
   prompt_stored: number;
+}
+
+export interface BodyOutcomeCounts {
+  text: number;
+  excerpt: number;
+  metadata: number;
+  limit: number;
+  failure: number;
+  disabled: number;
+  dropped: number;
+  expired: number;
 }
 
 export interface AssociationCounts {

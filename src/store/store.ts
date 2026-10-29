@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { Db, Queryable } from './db.ts';
 import type {
   AssociationCounts,
+  BodyOutcomeCounts,
   BreakdownRow,
   CaptureStats,
+  ContentSummaryView,
   IdentityStats,
   ProxyRequestFilter,
   ProxyRequestInsert,
@@ -32,6 +34,31 @@ function strOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function parseContentSummary(value: unknown): ContentSummaryView | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    const record = parsed as Record<string, unknown>;
+    const types = Array.isArray(record.attachment_types)
+      ? record.attachment_types.filter((item): item is string => typeof item === 'string').slice(0, 8)
+      : [];
+    const unknownTypes = Array.isArray(record.unknown_types)
+      ? record.unknown_types.filter((item): item is string => typeof item === 'string').slice(0, 8)
+      : [];
+    return {
+      attachment_count: numOrNull(record.attachment_count) ?? 0,
+      attachment_types: types,
+      has_tool_result: record.has_tool_result === true,
+      has_unknown_content: record.has_unknown_content === true,
+      unknown_types: unknownTypes,
+      declared_bytes: numOrNull(record.declared_bytes),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function mapProxyRow(row: Row): ProxyRequestRecord {
   return {
     proxy_request_id: String(row.proxy_request_id),
@@ -53,6 +80,9 @@ function mapProxyRow(row: Row): ProxyRequestRecord {
     model: strOrNull(row.model),
     is_stream: numOrNull(row.is_stream),
     duration_ms: numOrNull(row.duration_ms),
+    request_bytes: numOrNull(row.request_bytes),
+    request_bytes_complete: numOrNull(row.request_bytes_complete),
+    content_summary: parseContentSummary(row.content_summary),
     usage_event_count: num(row.usage_event_count),
     prompt_tokens: numOrNull(row.prompt_tokens),
     completion_tokens: numOrNull(row.completion_tokens),
@@ -101,6 +131,9 @@ const PROXY_COLUMNS = [
   'model',
   'is_stream',
   'duration_ms',
+  'request_bytes',
+  'request_bytes_complete',
+  'content_summary',
 ] as const;
 
 const USAGE_COLUMNS = [
@@ -477,6 +510,73 @@ export class Store {
       [this.deploymentId, filter.from, filter.to],
     );
     return rows.map((row) => ({ reason: String(row.reason), count: num(row.count) }));
+  }
+
+  /**
+   * 把底层状态归并为管理员可理解的正文结果：
+   * text（完整文本）/ excerpt（截断节选）/ metadata（主动省略或仅元数据）
+   * / limit（超限或预算不足）/ failure（解析、脱敏、写库等故障）。
+   */
+  async bodyOutcomeCounts(filter: UsageFilter): Promise<BodyOutcomeCounts> {
+    const rows = await this.db.query<Row>(
+      `SELECT
+        COALESCE(SUM(CASE WHEN capture_status = 'captured' AND prompt_truncated = 0 THEN 1 ELSE 0 END), 0) AS text,
+        COALESCE(SUM(CASE WHEN capture_status = 'captured' AND prompt_truncated = 1 THEN 1 ELSE 0 END), 0) AS excerpt,
+        COALESCE(SUM(CASE WHEN capture_status = 'skipped'
+          AND skip_reason IN ('tool_result_only','attachment_only','unknown_content_only','no_user_text','route_not_in_scope','unsupported_content_type','unsupported_content_encoding','upstream_status','no_upstream_response') THEN 1 ELSE 0 END), 0) AS metadata,
+        COALESCE(SUM(CASE WHEN (capture_status = 'skipped' AND skip_reason IN ('over_limit','capture_budget_exhausted','incomplete_request_body'))
+          OR capture_status = 'dropped' THEN 1 ELSE 0 END), 0) AS limited,
+        COALESCE(SUM(CASE WHEN capture_status = 'skipped' AND skip_reason IN ('invalid_json','redaction_failed') THEN 1 ELSE 0 END), 0) AS failed,
+        COALESCE(SUM(CASE WHEN capture_status = 'disabled' THEN 1 ELSE 0 END), 0) AS disabled,
+        COALESCE(SUM(CASE WHEN capture_status = 'dropped' THEN 1 ELSE 0 END), 0) AS dropped,
+        COALESCE(SUM(CASE WHEN capture_status = 'expired' THEN 1 ELSE 0 END), 0) AS expired
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    const row = rows[0] ?? {};
+    return {
+      text: num(row.text),
+      excerpt: num(row.excerpt),
+      metadata: num(row.metadata),
+      limit: num(row.limited),
+      failure: num(row.failed),
+      disabled: num(row.disabled),
+      dropped: num(row.dropped),
+      expired: num(row.expired),
+    };
+  }
+
+  async requestByteStats(filter: UsageFilter): Promise<{ observed_bytes: number; complete: number; incomplete: number; max_bytes: number }> {
+    const rows = await this.db.query<Row>(
+      `SELECT
+        COALESCE(SUM(request_bytes), 0) AS observed_bytes,
+        COALESCE(SUM(CASE WHEN request_bytes_complete = 1 THEN 1 ELSE 0 END), 0) AS complete,
+        COALESCE(SUM(CASE WHEN request_bytes IS NOT NULL AND request_bytes_complete = 0 THEN 1 ELSE 0 END), 0) AS incomplete,
+        COALESCE(MAX(request_bytes), 0) AS max_bytes
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    const row = rows[0] ?? {};
+    return {
+      observed_bytes: num(row.observed_bytes),
+      complete: num(row.complete),
+      incomplete: num(row.incomplete),
+      max_bytes: num(row.max_bytes),
+    };
+  }
+
+  async extractionVersionCounts(filter: UsageFilter): Promise<Array<{ version: string; count: number }>> {
+    const rows = await this.db.query<Row>(
+      `SELECT COALESCE(extraction_version, 'none') AS version, COUNT(*) AS count
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3
+       GROUP BY COALESCE(extraction_version, 'none')
+       ORDER BY count DESC`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    return rows.map((row) => ({ version: String(row.version), count: num(row.count) }));
   }
 
   async associationCounts(

@@ -294,12 +294,25 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         return;
       }
       const filter = { from: range.from.toISOString(), to: range.to.toISOString() };
-      const [capture, skipReasons, association] = await Promise.all([
+      const [capture, skipReasons, association, outcomes, bytes, versions] = await Promise.all([
         store.captureStats(filter),
         store.captureSkipReasons(filter),
         store.associationCounts(filter, config.associationPendingWindowMs),
+        store.bodyOutcomeCounts(filter),
+        store.requestByteStats(filter),
+        store.extractionVersionCounts(filter),
       ]);
-      sendJson(res, 200, { from: filter.from, to: filter.to, capture, skip_reasons: skipReasons, association });
+      sendJson(res, 200, {
+        from: filter.from,
+        to: filter.to,
+        capture_enabled: config.captureEnabled,
+        capture,
+        skip_reasons: skipReasons,
+        association,
+        outcomes,
+        request_bytes: bytes,
+        extraction_versions: versions,
+      });
       return;
     }
 

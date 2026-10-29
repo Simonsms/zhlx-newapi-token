@@ -16,12 +16,14 @@ export interface FakeUpstream {
     body: string;
   }>;
   logs: Record<string, unknown>[];
+  releasePaused(requestId: string): boolean;
   close(): Promise<void>;
 }
 
 export async function startFakeUpstream(): Promise<FakeUpstream> {
   const requests: FakeUpstream['requests'] = [];
   const logs: Record<string, unknown>[] = [];
+  const pausedResponses = new Map<string, () => void>();
   let counter = 0;
 
   const server = http.createServer((req, res) => {
@@ -54,7 +56,7 @@ export async function startFakeUpstream(): Promise<FakeUpstream> {
         return;
       }
 
-      if (req.url === '/v1/chat/completions' || req.url === '/v1/responses') {
+      if (req.url === '/v1/chat/completions' || req.url === '/v1/responses' || req.url === '/v1/messages') {
         if (body.includes('unauthorized-model')) {
           res.writeHead(401, {
             'content-type': 'application/json',
@@ -76,6 +78,19 @@ export async function startFakeUpstream(): Promise<FakeUpstream> {
             res.end();
           }, 5000);
           res.on('close', () => clearTimeout(timer));
+          return;
+        }
+        if (body.includes('paused-model')) {
+          // A12：先发第一段，挂起等待测试方放行，再发剩余内容。
+          res.writeHead(200, { ...responseHeaders, 'content-type': 'text/event-stream' });
+          res.write('data: {"choices":[{"delta":{"content":"FIRST_CHUNK"}}]}\n\n');
+          const release = (): void => {
+            res.write('data: {"choices":[{"delta":{"content":"SECOND_CHUNK"}}]}\n\n');
+            res.write('data: [DONE]\n\n');
+            res.end();
+          };
+          pausedResponses.set(requestId, release);
+          res.on('close', () => pausedResponses.delete(requestId));
           return;
         }
         const wantsStream = body.includes('"stream":true') || body.includes('"stream": true');
@@ -113,6 +128,13 @@ export async function startFakeUpstream(): Promise<FakeUpstream> {
     url: `http://127.0.0.1:${address.port}`,
     requests,
     logs,
+    releasePaused(requestId: string) {
+      const release = pausedResponses.get(requestId);
+      if (!release) return false;
+      pausedResponses.delete(requestId);
+      release();
+      return true;
+    },
     async close() {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
@@ -163,7 +185,14 @@ export async function startTestApp(options: TestOptions = {}): Promise<TestConte
   };
 
   const config = configFromEnv(env);
-  const app = await createApp(config);
+  let app: App;
+  try {
+    app = await createApp(config);
+  } catch (error) {
+    await upstream.close();
+    rmSync(dataDir, { recursive: true, force: true });
+    throw error;
+  }
 
   return {
     app,

@@ -84,6 +84,32 @@ describe('管理员认证与权限边界', () => {
     assert.equal('admin_token' in body, false);
   });
 
+  it('管理页面请求的认证路径与服务端路由一致', async () => {
+    const res = await fetch(adminBase(ctx));
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /api\(BASE \+ "session"\)/);
+    assert.match(html, /fetch\(BASE \+ "login"/);
+    assert.match(html, /fetch\(BASE \+ "logout"/);
+    assert.match(html, /api\(BASE \+ "api\/overview\?"/);
+    assert.doesNotMatch(html, /BASE \+ "api\/(?:session|login|logout)"/);
+
+    const session = await fetch(`${adminBase(ctx)}/session`);
+    assert.equal(session.status, 200);
+    const loginResponse = await fetch(`${adminBase(ctx)}/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: 'test-admin-token' }),
+    });
+    assert.equal(loginResponse.status, 200);
+    const cookie = loginResponse.headers.get('set-cookie');
+    assert.ok(cookie);
+    const authorized = await fetch(`${adminBase(ctx)}/api/overview`, {
+      headers: { cookie: cookie.split(';')[0] ?? '' },
+    });
+    assert.equal(authorized.status, 200);
+  });
+
   it('管理页面返回带 CSP 的 HTML', async () => {
     const res = await fetch(`${adminBase(ctx)}`);
     assert.equal(res.status, 200);
