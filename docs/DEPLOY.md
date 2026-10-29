@@ -110,8 +110,18 @@ networks:
 | 网络 | 加入 `new-api_default`，上游为 `http://new-api:3000` |
 | 本服务数据库 | `/home/ubuntu/zhlx-newapi-token/data/zhlx.db`（SQLite） |
 | 凭据 | 同目录 `.env`（权限 600），含随机生成的 `ADMIN_API_TOKEN` 与 `SESSION_SECRET` |
-| 正文采集 | 关闭 |
+| 正文采集 | 已开启（`CAPTURE_ENABLED=true`，2026-10-29 验证采集链路后启用） |
 | 日志同步 | 开启，只读挂载 `/home/ubuntu/new-api/data` |
+
+采集范围与上限由 `.env` 控制，改完执行 `docker compose -f docker-compose.standalone.yml up -d` 生效：
+
+```bash
+CAPTURE_ENABLED=true
+CAPTURE_ROUTES=/v1/chat/completions,/v1/responses,/v1/messages,/v1/completions
+CAPTURE_MAX_BYTES=262144
+CAPTURE_MAX_CHARS=8000
+PROMPT_RETENTION_DAYS=30
+```
 
 常用运维命令：
 
@@ -135,8 +145,20 @@ grep ^ADMIN_API_TOKEN .env        # 登录管理页所需令牌
 | 经代理访问 `/v1/models` | 401（透传 New API 鉴权结果，链路通） |
 | 首次全量同步 | 71,763 条，包含历史 7 个月数据 |
 | 归属口径 | 自动判定为 `token`（1 个账号 / 29 个凭证） |
+| Prompt 采集 | 已用真实请求验证：`/v1/responses` 文本入库，邮箱与密钥被替换为 `[REDACTED:*]` |
+| 请求关联 | 同一次请求的网关 ID 与原生日志匹配成功，Token 数 4427/71 与源库完全一致 |
 
 与源库直查对比时出现 1~2 条差额，原因是源库持续有新请求写入，而同步只覆盖到「当前时间 − 30 秒安全滞后」的窗口；下一轮 5 分钟同步会自动追平。这是预期行为，不是丢数据。
+
+## 采集生效的前提
+
+代理只在请求**经过本服务**时采集。当前客户端仍直连 `50085`，因此除非把入口切到 `50086`，否则不会产生新的 Prompt 记录。已采集到的样本是通过 `50086` 主动发起的验证请求。
+
+切换前需确认：
+
+1. 对外域名/TLS 入口指向本服务，而不是直接指向 `50085`。
+2. 安全组或防火墙未放通 `50085` 直连，避免绕过采集。
+3. 正文采集的用途、告知与保留期已按内部要求落实。
 
 ## 仍未确认
 
