@@ -14,6 +14,7 @@ import {
   type Range,
 } from '../format';
 import { useFetch } from '../hooks';
+import { PromptViewer } from './PromptViewer';
 
 interface Filters {
   userId: string;
@@ -256,6 +257,7 @@ function DetailPanel({ id, onClose }: { id: string | null; onClose: () => void }
 
   const request = detail?.request;
   return (
+    <div className="detail-sticky">
     <Card
       title="请求详情"
       extra={<button className="ghost" type="button" onClick={onClose}>关闭</button>}
@@ -291,7 +293,18 @@ function DetailPanel({ id, onClose }: { id: string | null; onClose: () => void }
           ) : null}
 
           <h2 style={{ marginTop: 18 }}>脱敏用户文本</h2>
-          <div className="prompt">{request.prompt_text ?? '（无已保存的 Prompt）'}</div>
+          <PromptViewer
+            text={request.prompt_text}
+            scope={request.prompt_scope}
+            chars={request.prompt_chars}
+            truncated={request.prompt_truncated}
+            extractionVersion={request.extraction_version}
+            redactionVersion={request.redaction_version}
+          />
+          <p className="note" style={{ marginTop: 8 }}>
+            这里保存的是该请求最后一条 user 输入。客户端可能在其中注入自身上下文（例如 system-reminder），
+            因此文本不等于用户逐字输入；绿色标记为脱敏替换，斜体标记为头尾节选省略。
+          </p>
 
           <h2 style={{ marginTop: 18 }}>原生消费事件</h2>
           {detail.usage_events.length === 0 ? <Empty>暂无原生消费事件</Empty> : (
@@ -328,5 +341,6 @@ function DetailPanel({ id, onClose }: { id: string | null; onClose: () => void }
         </>
       )}
     </Card>
+    </div>
   );
 }
