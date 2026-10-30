@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, type RequestDetail, type RequestsResponse } from '../api';
 import { Card, Empty, Tag } from '../components';
 import {
@@ -40,7 +40,18 @@ export function RequestsView({ range }: { range: Range }): ReactNode {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
   const pageSize = 25;
+
+  useEffect(() => {
+    if (!selected) return;
+    const node = detailRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    if (rect.top < 0 || rect.bottom > window.innerHeight) {
+      node.scrollIntoView({ block: 'start' });
+    }
+  }, [selected]);
 
   const query = rangeQuery(range, {
     user_id: filters.userId,
@@ -190,8 +201,8 @@ export function RequestsView({ range }: { range: Range }): ReactNode {
                         }
                       }}
                     >
-                      <td className="mono">{shortTime(item.received_at)}</td>
-                      <td className="mono">{item.path}</td>
+                      <td className="mono nowrap">{shortTime(item.received_at)}</td>
+                      <td className="mono nowrap">{item.path}</td>
                       <td className="truncate" style={{ maxWidth: 150 }} title={item.model ?? ''}>{item.model ?? '—'}</td>
                       <td>
                         <Tag tone={outcome.tone}>{outcome.text}</Tag>
@@ -217,7 +228,9 @@ export function RequestsView({ range }: { range: Range }): ReactNode {
           </div>
         </Card>
 
-        <DetailPanel id={selected} onClose={() => setSelected(null)} />
+        <div ref={detailRef}>
+          <DetailPanel id={selected} onClose={() => setSelected(null)} />
+        </div>
       </div>
     </>
   );
