@@ -7,177 +7,193 @@
 <title>New API 用量与 Prompt 采集</title>
 <style>
   :root {
-    --dp-color-ground: #f5efdf;
-    --dp-color-ink: #1e382c;
-    --dp-color-panel: #e0e5d3;
-    --dp-color-warm-field: #e6cbb8;
-    --dp-color-accent: #895440;
-    --dp-color-rule: #d4d0bd;
-    --dp-color-ornament-line: #b5baa4;
-    --dp-color-field-line: #697961;
-    --dp-typography-display: "EB Garamond", "Botanical Garamond", Georgia, serif;
-    --dp-typography-reading: "Instrument Sans", "Botanical Instrument", sans-serif;
-    --dp-typography-body: 16px;
-    --dp-typography-metadata: 13px;
-    --dp-typography-label: 12px;
-    --dp-typography-compact-leading: 1.5;
-    --dp-typography-label-tracking: 0.12em;
-    --dp-spacing-panel-inline: max(30px, 4.2cqw);
-    --dp-radius-panel: 34px;
-    --dp-radius-panel-narrow: 27px;
-    --dp-radius-round: 50%;
+    --dp-color-ground: #050505;
+    --dp-color-panel: #0e0e0e;
+    --dp-color-hairline: #222222;
+    --dp-color-hairline-2: #303030;
+    --dp-color-bright: #f2f2f2;
+    --dp-color-read: #a6a9ad;
+    --dp-color-meta: #8a8d91;
+    --dp-color-live: #3fd6c6;
+    --dp-color-inverse-ink: #0a0a0a;
+    --dp-color-dim: #96999d;
+    --dp-typography-face: "Modern Dark Grotesk", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    --dp-typography-mono: "Modern Dark Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --dp-spacing-gutter: 48px;
+    --dp-spacing-gap: 24px;
+    --dp-spacing-max: 1360px;
+    --dp-radius-panel: 6px;
+    --dp-radius-pill: 999px;
     --dp-border-hairline: 1px;
-    --dp-motion-interaction: 0.35s;
-    --dp-motion-easing: ease;
+    --dp-motion-duration: 120ms;
+    --dp-motion-ease: ease-out;
   }
   * { box-sizing: border-box; }
   html { background: var(--dp-color-ground); }
   body {
     margin: 0;
-    background:
-      radial-gradient(circle at 18% 12%, rgba(181, 186, 164, 0.16), transparent 45%),
-      radial-gradient(circle at 88% 78%, rgba(137, 84, 64, 0.07), transparent 40%),
-      var(--dp-color-ground);
-    color: var(--dp-color-ink);
-    font: var(--dp-typography-body)/1.65 var(--dp-typography-reading);
+    background: var(--dp-color-ground);
+    color: var(--dp-color-read);
+    font: 15px/1.65 var(--dp-typography-face);
   }
   header {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
-    padding: 26px var(--dp-spacing-panel-inline) 18px;
-    border-bottom: var(--dp-border-hairline) solid var(--dp-color-rule);
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+    padding: 18px var(--dp-spacing-gutter) 16px;
+    background: rgba(5, 5, 5, 0.94);
+    border-bottom: var(--dp-border-hairline) solid var(--dp-color-hairline);
   }
+  header .brand { display: flex; align-items: baseline; gap: 16px; min-width: 0; }
   header h1 {
-    font-family: var(--dp-typography-display);
-    font-size: clamp(24px, 2.4vw, 34px);
-    font-weight: 400; letter-spacing: -0.012em; margin: 0;
+    font-size: 19px; font-weight: 500; letter-spacing: -0.01em;
+    margin: 0; color: var(--dp-color-bright); white-space: nowrap;
+  }
+  header .brand-sub {
+    font-family: var(--dp-typography-mono); font-size: 12px;
+    color: var(--dp-color-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   header .meta {
-    color: var(--dp-color-ink); font-size: var(--dp-typography-metadata);
+    color: var(--dp-color-meta); font-size: 12px;
     display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
-    text-transform: uppercase; letter-spacing: 0.06em;
   }
-  main { padding: 26px var(--dp-spacing-panel-inline) 70px; max-width: 1440px; margin: 0 auto; }
+  #captureflag { font-family: var(--dp-typography-mono); letter-spacing: 0.02em; color: var(--dp-color-meta); }
+  #captureflag .dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--dp-color-live); margin-right: 7px; vertical-align: middle;
+  }
+  #captureflag .dot.off { background: var(--dp-color-hairline-2); }
+  main {
+    padding: 28px var(--dp-spacing-gutter) 72px;
+    max-width: var(--dp-spacing-max); margin: 0 auto;
+  }
   .hidden { display: none !important; }
 
   button, input, select {
-    font: inherit; font-size: var(--dp-typography-metadata);
-    color: var(--dp-color-ink); background: rgba(255, 255, 255, 0.55);
-    border: var(--dp-border-hairline) solid var(--dp-color-rule);
-    border-radius: 999px; padding: 9px 16px;
-    transition: background var(--dp-motion-interaction) var(--dp-motion-easing),
-                border-color var(--dp-motion-interaction) var(--dp-motion-easing),
-                transform var(--dp-motion-interaction) var(--dp-motion-easing);
+    font: inherit; font-size: 13px;
+    color: var(--dp-color-bright); background: var(--dp-color-panel);
+    border: var(--dp-border-hairline) solid var(--dp-color-hairline-2);
+    border-radius: var(--dp-radius-pill); padding: 8px 16px;
+    transition: background var(--dp-motion-duration) var(--dp-motion-ease),
+                border-color var(--dp-motion-duration) var(--dp-motion-ease),
+                color var(--dp-motion-duration) var(--dp-motion-ease);
   }
-  select, input[type="datetime-local"] { border-radius: 999px; }
-  input::placeholder { color: #8c937f; }
+  input[type="datetime-local"], input[type="number"], input[type="password"], input[type="text"] {
+    border-radius: var(--dp-radius-panel); padding: 8px 12px;
+    color-scheme: dark;
+  }
+  input::placeholder { color: var(--dp-color-dim); }
   button { cursor: pointer; }
-  button:hover { border-color: var(--dp-color-accent); transform: translateY(-1px); }
-  button:focus-visible, input:focus-visible, select:focus-visible,
-  a.link:focus-visible {
-    outline: 2px solid var(--dp-color-accent);
-    outline-offset: 3px;
+  button:hover { border-color: var(--dp-color-dim); }
+  button:focus-visible, input:focus-visible, select:focus-visible, a.link:focus-visible {
+    outline: 2px solid var(--dp-color-bright); outline-offset: 2px;
   }
-  button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
   button.primary {
-    background: var(--dp-color-ink); border-color: var(--dp-color-ink);
-    color: var(--dp-color-ground); font-weight: 600;
+    background: var(--dp-color-bright); border-color: var(--dp-color-bright);
+    color: var(--dp-color-inverse-ink); font-weight: 500;
   }
-  button.primary:hover { background: #16291f; }
-  button.ghost { background: transparent; border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
-  button.ghost:hover { border-color: transparent; color: var(--dp-color-accent); }
+  button.primary:hover { background: #d9d9d9; border-color: #d9d9d9; }
+  button.ghost { background: transparent; border-color: var(--dp-color-hairline-2); }
+  button.ghost:hover { border-color: var(--dp-color-dim); color: var(--dp-color-bright); }
 
   label {
-    color: #55604f; font-size: var(--dp-typography-label);
-    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+    color: var(--dp-color-meta); font-size: 11px; font-family: var(--dp-typography-mono);
+    text-transform: uppercase; letter-spacing: 0.12em;
     display: block; margin-bottom: 6px;
   }
   .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
 
   .card {
     background: var(--dp-color-panel);
-    border: var(--dp-border-hairline) solid rgba(105, 121, 97, 0.28);
+    border: var(--dp-border-hairline) solid var(--dp-color-hairline);
     border-radius: var(--dp-radius-panel);
-    padding: 26px var(--dp-spacing-panel-inline);
-    margin-bottom: 22px;
+    padding: 20px 22px;
+    scroll-margin-top: 88px;
   }
-  .card.bare { background: transparent; border: none; padding-left: 0; padding-right: 0; }
+  .col > .card { margin-bottom: var(--dp-spacing-gap); }
   .card h2 {
-    font-family: var(--dp-typography-display);
-    font-size: 22px; font-weight: 400; letter-spacing: -0.01em;
-    margin: 0 0 16px; color: var(--dp-color-ink); text-transform: none;
+    font-size: 15px; font-weight: 500; letter-spacing: 0.01em;
+    margin: 0 0 14px; color: var(--dp-color-bright);
   }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 14px; }
+  .head-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .head-row h2 { margin: 0; }
+  .section-note { color: var(--dp-color-meta); font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
   .stat {
-    background: rgba(255, 255, 255, 0.5);
-    border: var(--dp-border-hairline) solid rgba(105, 121, 97, 0.22);
-    border-radius: var(--dp-radius-panel-narrow);
-    padding: 16px 18px;
+    background: transparent;
+    border: var(--dp-border-hairline) solid var(--dp-color-hairline);
+    border-radius: var(--dp-radius-panel);
+    padding: 12px 14px;
   }
   .stat .k {
-    color: #55604f; font-size: var(--dp-typography-label);
-    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+    color: var(--dp-color-meta); font-size: 11px; font-family: var(--dp-typography-mono);
+    text-transform: uppercase; letter-spacing: 0.1em;
   }
   .stat .v {
-    font-family: var(--dp-typography-display);
-    font-size: 30px; font-weight: 400; margin-top: 4px;
-    font-variant-numeric: tabular-nums; line-height: 1.2;
+    font-family: var(--dp-typography-mono);
+    font-size: 22px; font-weight: 400; margin-top: 6px;
+    color: var(--dp-color-bright); font-variant-numeric: tabular-nums; line-height: 1.2;
   }
-  .stat .s { color: #55604f; font-size: 12px; margin-top: 4px; }
+  .stat .s { color: var(--dp-color-meta); font-size: 11px; margin-top: 4px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: var(--dp-typography-metadata); }
-  th, td { text-align: left; padding: 11px 12px; border-bottom: var(--dp-border-hairline) solid var(--dp-color-rule); vertical-align: top; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: var(--dp-border-hairline) solid var(--dp-color-hairline); vertical-align: top; }
   th {
-    color: #55604f; font-weight: 500; font-size: var(--dp-typography-label); white-space: nowrap;
-    text-transform: uppercase; letter-spacing: var(--dp-typography-label-tracking);
+    color: var(--dp-color-meta); font-weight: 400; font-size: 11px; white-space: nowrap;
+    font-family: var(--dp-typography-mono); text-transform: uppercase; letter-spacing: 0.1em;
   }
+  td { color: var(--dp-color-read); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody tr { transition: background var(--dp-motion-interaction) var(--dp-motion-easing); }
-  tbody tr:hover { background: rgba(255, 255, 255, 0.42); }
+  td.num { font-family: var(--dp-typography-mono); color: var(--dp-color-bright); font-size: 12.5px; }
+  tbody tr { transition: background var(--dp-motion-duration) var(--dp-motion-ease); }
+  tbody tr:hover { background: #131313; }
 
   .tag {
-    display: inline-block; padding: 2px 10px; border-radius: 999px;
-    font-size: var(--dp-typography-label); letter-spacing: 0.03em;
-    border: var(--dp-border-hairline) solid var(--dp-color-ornament-line);
-    color: #55604f; background: rgba(255, 255, 255, 0.4);
+    display: inline-block; padding: 2px 10px; border-radius: var(--dp-radius-pill);
+    font-size: 11px; letter-spacing: 0.03em;
+    border: var(--dp-border-hairline) solid var(--dp-color-hairline-2);
+    color: var(--dp-color-read); background: transparent; white-space: nowrap;
   }
-  .tag.good { color: #24402f; border-color: #8fae95; background: #d8e6d6; }
-  .tag.warn { color: var(--dp-color-accent); border-color: #cda98f; background: #f0ded1; }
-  .tag.bad { color: #7c2d22; border-color: #c99b94; background: #f2dcd7; }
-  .muted { color: #55604f; }
-  .mono { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+  .tag.good { color: var(--dp-color-live); border-color: rgba(63, 214, 198, 0.45); }
+  .tag.warn { color: var(--dp-color-bright); border-color: var(--dp-color-hairline-2); background: #171717; }
+  .tag.bad { color: var(--dp-color-bright); border-color: var(--dp-color-bright); }
+  .muted { color: var(--dp-color-meta); }
+  .mono { font-family: var(--dp-typography-mono); font-size: 12px; }
 
-  .login { max-width: 420px; margin: 10vh auto; }
-  .login input { width: 100%; margin-bottom: 14px; border-radius: 14px; padding: 12px 14px; }
-  .error { color: #7c2d22; font-size: var(--dp-typography-metadata); min-height: 22px; }
+  .login { max-width: 400px; margin: 12vh auto; }
+  .login input { width: 100%; margin-bottom: 14px; }
+  .error { color: var(--dp-color-bright); font-size: 13px; min-height: 22px; }
 
   .prompt {
     white-space: pre-wrap; word-break: break-word;
-    background: rgba(255, 255, 255, 0.58);
-    border: var(--dp-border-hairline) solid var(--dp-color-rule);
-    border-radius: var(--dp-radius-panel-narrow);
-    padding: 18px; max-height: 360px; overflow: auto;
-    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-    font-size: 12.5px; line-height: 1.7;
+    background: #0a0a0a;
+    border: var(--dp-border-hairline) solid var(--dp-color-hairline);
+    border-radius: var(--dp-radius-panel);
+    padding: 16px; max-height: 360px; overflow: auto;
+    font-family: var(--dp-typography-mono);
+    font-size: 12.5px; line-height: 1.7; color: var(--dp-color-read);
   }
-  .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 22px; }
-  @media (max-width: 1120px) { .split { grid-template-columns: 1fr; } }
-  a.link { color: var(--dp-color-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-  a.link:hover { color: var(--dp-color-ink); }
-  .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 16px; }
+  .split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; }
+  @media (max-width: 980px) { .split { grid-template-columns: 1fr; } }
+  .dash { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--dp-spacing-gap); align-items: start; }
+  .col { min-width: 0; }
+  @media (max-width: 1080px) { .dash { grid-template-columns: 1fr; } }
+  a.link { color: var(--dp-color-bright); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--dp-color-hairline-2); }
+  a.link:hover { text-decoration-color: var(--dp-color-bright); }
+  .pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 14px; }
+  .pager .mono { color: var(--dp-color-meta); }
   .close { float: right; }
-  details summary { cursor: pointer; color: var(--dp-color-accent); }
-  .bar { height: 8px; background: rgba(255, 255, 255, 0.55); border-radius: 999px; overflow: hidden; margin-top: 8px; }
-  .bar > div { height: 100%; background: var(--dp-color-ornament-line); }
   .notice {
-    border-left: 3px solid var(--dp-color-accent); padding: 10px 16px;
-    background: var(--dp-color-warm-field); border-radius: 14px;
-    color: #52301f; font-size: var(--dp-typography-metadata); margin-bottom: 18px;
+    border-left: 2px solid var(--dp-color-live); padding: 10px 16px;
+    background: var(--dp-color-panel); border-radius: var(--dp-radius-panel);
+    color: var(--dp-color-read); font-size: 13px; margin-bottom: 18px;
   }
-  .lede { max-width: 62ch; color: #3f4b3c; font-size: 15px; margin: 0 0 22px; }
-  .ornament {
-    height: var(--dp-border-hairline); background: var(--dp-color-ornament-line);
-    max-width: 92px; margin: 0 0 18px;
-  }
+  .lede { max-width: 64ch; color: var(--dp-color-meta); font-size: 12.5px; line-height: 1.6; margin: -6px 0 14px; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 5px 0; border-bottom: var(--dp-border-hairline) solid var(--dp-color-hairline); }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--dp-color-meta); font-family: var(--dp-typography-mono); }
+  .kv .n { color: var(--dp-color-bright); font-family: var(--dp-typography-mono); font-variant-numeric: tabular-nums; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       transition: none !important;
@@ -189,12 +205,11 @@
 </head>
 <body>
 <header>
-  <div>
-    <div class="ornament"></div>
+  <div class="brand">
     <h1>New API 用量与 Prompt 采集</h1>
+    <span class="brand-sub" id="deployment"></span>
   </div>
   <div class="meta">
-    <span id="deployment"></span>
     <span id="captureflag"></span>
     <button class="ghost hidden" id="logoutBtn">退出</button>
   </div>
@@ -218,8 +233,8 @@
       <div class="row">
         <div><label>开始时间</label><input id="from" type="datetime-local"></div>
         <div><label>结束时间</label><input id="to" type="datetime-local"></div>
-        <div><label>账号 ID</label><input id="userId" type="number" placeholder="全部" style="width:100px"></div>
-        <div><label>凭证 ID</label><input id="tokenId" type="number" placeholder="全部" style="width:100px"></div>
+        <div><label>账号 ID</label><input id="userId" type="number" placeholder="全部" style="width:96px"></div>
+        <div><label>凭证 ID</label><input id="tokenId" type="number" placeholder="全部" style="width:96px"></div>
         <div><label>模型</label><input id="model" placeholder="全部"></div>
         <div><label>关联状态</label>
           <select id="status">
@@ -236,78 +251,86 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" style="margin-top:var(--dp-spacing-gap)">
       <h2>全量原生日志用量</h2>
       <div class="stats" id="totals"></div>
-      <p class="muted" id="identityNote" style="font-size:12px;margin:10px 0 0"></p>
-      <p class="muted" id="totalsNote" style="font-size:12px;margin:6px 0 0"></p>
+      <p class="section-note" id="identityNote"></p>
+      <p class="section-note" id="totalsNote"></p>
     </div>
 
-    <div class="card">
-      <h2>正文结果分布</h2>
-      <p class="lede">分母是本区间进入采集范围的推理请求。主动省略与资源受限、系统故障分开计数；历史 extract-v1 记录按原含义展示，不重写。</p>
-      <div class="stats" id="outcomes"></div>
-      <p class="muted" id="outcomeNote" style="font-size:12px;margin:12px 0 0"></p>
-    </div>
-
-    <div class="split">
-      <div class="card">
-        <h2>采集与关联质量</h2>
-        <div class="stats" id="quality"></div>
-        <div id="skipReasons" style="margin-top:16px"></div>
-      </div>
-      <div class="card">
-        <h2>请求体计量与同步</h2>
-        <div class="stats" id="syncStats"></div>
-        <p class="muted" id="syncError" style="font-size:12px;margin:10px 0 0"></p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row" style="justify-content:space-between;margin-bottom:12px">
-        <h2 style="margin:0">用量分组</h2>
-        <select id="groupBy">
-          <option value="identity">按人员（自动口径）</option>
-          <option value="day">按天</option>
-          <option value="user">按账号</option>
-          <option value="token">按凭证</option>
-          <option value="model">按模型</option>
-        </select>
-      </div>
-      <table>
-        <thead><tr><th id="bucketHead">日期</th><th class="num">消费事件</th><th class="num">错误事件</th><th class="num">输入 Token</th><th class="num">输出 Token</th><th class="num">额度</th></tr></thead>
-        <tbody id="breakdownBody"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <h2>采集请求</h2>
-      <table>
-        <thead><tr><th>时间</th><th>接口</th><th>模型</th><th>状态</th><th>关联</th><th>Prompt</th><th>网关请求 ID</th></tr></thead>
-        <tbody id="requestsBody"></tbody>
-      </table>
-      <div class="pager">
-        <span class="muted" id="pageInfo"></span>
-        <button class="ghost" id="prevBtn">上一页</button>
-        <button class="ghost" id="nextBtn">下一页</button>
-      </div>
-    </div>
-
-    <div class="card hidden" id="detailCard">
-      <button class="ghost close" id="closeDetail">关闭</button>
-      <h2>请求详情</h2>
-      <div id="detailMeta" class="muted" style="font-size:12px;margin-bottom:12px"></div>
-      <div class="split">
-        <div>
-          <h2>脱敏用户文本</h2>
-          <div class="prompt" id="detailPrompt">（无）</div>
-        </div>
-        <div>
-          <h2>原生消费事件</h2>
+    <div class="dash" style="margin-top:var(--dp-spacing-gap)">
+      <div class="col">
+        <div class="card">
+          <div class="head-row">
+            <h2>采集请求</h2>
+            <span class="mono muted" style="font-size:11px">逐条展示正文结果与跳过原因</span>
+          </div>
           <table>
-            <thead><tr><th>类型</th><th>时间</th><th>用户/凭证</th><th class="num">输入</th><th class="num">输出</th><th class="num">额度</th><th>来源</th></tr></thead>
-            <tbody id="detailEvents"></tbody>
+            <thead><tr><th>时间</th><th>接口</th><th>模型</th><th>状态</th><th>关联</th><th>Prompt</th><th>网关请求 ID</th></tr></thead>
+            <tbody id="requestsBody"></tbody>
           </table>
+          <div class="pager">
+            <span class="mono" id="pageInfo"></span>
+            <button class="ghost" id="prevBtn">上一页</button>
+            <button class="ghost" id="nextBtn">下一页</button>
+          </div>
+        </div>
+
+        <div class="card hidden" id="detailCard">
+          <button class="ghost close" id="closeDetail">关闭</button>
+          <h2>请求详情</h2>
+          <div id="detailMeta" class="section-note" style="margin-bottom:14px"></div>
+          <div class="split">
+            <div>
+              <h2>脱敏用户文本</h2>
+              <div class="prompt" id="detailPrompt">（无）</div>
+            </div>
+            <div>
+              <h2>原生消费事件</h2>
+              <table>
+                <thead><tr><th>类型</th><th>时间</th><th>用户/凭证</th><th class="num">输入</th><th class="num">输出</th><th class="num">额度</th><th>来源</th></tr></thead>
+                <tbody id="detailEvents"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head-row">
+            <h2>用量分组</h2>
+            <select id="groupBy">
+              <option value="identity">按人员（自动口径）</option>
+              <option value="day">按天</option>
+              <option value="user">按账号</option>
+              <option value="token">按凭证</option>
+              <option value="model">按模型</option>
+            </select>
+          </div>
+          <table>
+            <thead><tr><th id="bucketHead">日期</th><th class="num">消费事件</th><th class="num">错误事件</th><th class="num">输入 Token</th><th class="num">输出 Token</th><th class="num">额度</th></tr></thead>
+            <tbody id="breakdownBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h2>正文结果分布</h2>
+          <p class="lede" style="margin-top:-4px">分母为本区间进入采集范围的推理请求；主动省略、资源受限与系统故障分开计数。历史 extract-v1 记录按原含义展示。</p>
+          <div class="stats" id="outcomes"></div>
+          <p class="section-note" id="outcomeNote"></p>
+        </div>
+
+        <div class="card">
+          <h2>采集与关联质量</h2>
+          <div class="stats" id="quality"></div>
+          <div id="skipReasons" style="margin-top:14px"></div>
+        </div>
+
+        <div class="card">
+          <h2>请求体计量与同步</h2>
+          <div class="stats" id="syncStats"></div>
+          <p class="section-note" id="syncError"></p>
         </div>
       </div>
     </div>
@@ -428,7 +451,9 @@
     }
     state.configured = session.configured;
     $("deployment").textContent = "部署：" + session.deployment_id;
-    $("captureflag").textContent = session.captured_enabled ? "Prompt 采集已启用" : "Prompt 采集已关闭";
+    $("captureflag").innerHTML = session.captured_enabled
+      ? '<span class="dot"></span>Prompt 采集已启用'
+      : '<span class="dot off"></span>Prompt 采集已关闭';
     if (!session.configured) {
       $("configNotice").classList.remove("hidden");
       showApp();
