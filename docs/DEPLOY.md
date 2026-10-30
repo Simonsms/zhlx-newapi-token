@@ -109,7 +109,7 @@ networks:
 | 入口端口 | 宿主机 `50085`（原 New API 入口，现由代理接管） |
 | New API 端口 | 改为 `127.0.0.1:50091:3000`，仅本机可访问，禁止绕过代理 |
 | 网络 | 加入 `new-api_default`，上游为 `http://new-api:3000` |
-| 管理入口 | `/_zhlx/admin`（避开 New API 自身的 `/admin`） |
+| 管理入口 | `/_zhlx/admin/`（必须带尾斜杠；无斜杠会 301 跳转。避开 New API 自身的 `/admin`） |
 | 健康检查 | `/_zhlx/healthz` |
 | 本服务数据库 | `/home/ubuntu/zhlx-newapi-token/data/zhlx.db`（SQLite） |
 | 凭据 | 同目录 `.env`（权限 600），含随机生成的 `ADMIN_API_TOKEN` 与 `SESSION_SECRET` |

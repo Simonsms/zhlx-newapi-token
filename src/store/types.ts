@@ -118,6 +118,7 @@ export interface ProxyRequestFilter {
   model?: string | null;
   status?: AssociationStatus | null;
   label?: string | null;
+  review?: boolean | null;
   query?: string | null;
   page: number;
   pageSize: number;

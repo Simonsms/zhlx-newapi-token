@@ -6,3 +6,5 @@ data
 *.log
 test
 docs
+web/node_modules
+web/dist

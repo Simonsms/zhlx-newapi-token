@@ -14,6 +14,7 @@ import { openDatabase } from './store/open.ts';
 import type { Db } from './store/db.ts';
 import { Store } from './store/store.ts';
 import { ProxyWriter } from './store/writer.ts';
+import { createStaticAssets } from './static.ts';
 import { LogSync } from './sync.ts';
 
 export interface App {
@@ -71,12 +72,14 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
   const sync = new LogSync(store, client, config, metrics, logger);
 
   const proxyHandler = createProxyHandler({ config, writer, logger });
+  const assets = createStaticAssets(logger);
   const adminHandler = createAdminHandler({
     config,
     store,
     auth,
     metrics,
     logger,
+    assets,
   });
 
   let cleanupTimer: NodeJS.Timeout | null = null;

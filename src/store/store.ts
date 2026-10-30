@@ -303,6 +303,11 @@ export class Store {
       params.push(filter.label);
       where.push(`p.classification_label = $${params.length}`);
     }
+    if (filter.review === true) {
+      where.push('p.classification_review = 1');
+    } else if (filter.review === false) {
+      where.push('p.classification_review = 0');
+    }
     params.push(pendingCutoff);
     const pendingParam = `$${params.length}`;
 

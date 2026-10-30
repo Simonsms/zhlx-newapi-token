@@ -84,15 +84,13 @@ describe('管理员认证与权限边界', () => {
     assert.equal('admin_token' in body, false);
   });
 
-  it('管理页面请求的认证路径与服务端路由一致', async () => {
+  it('管理页面产物与服务端路由一致', async () => {
     const res = await fetch(adminBase(ctx));
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.match(html, /api\(BASE \+ "session"\)/);
-    assert.match(html, /fetch\(BASE \+ "login"/);
-    assert.match(html, /fetch\(BASE \+ "logout"/);
-    assert.match(html, /api\(BASE \+ "api\/overview\?"/);
-    assert.doesNotMatch(html, /BASE \+ "api\/(?:session|login|logout)"/);
+    assert.match(html, /<div id="root">/);
+    assert.match(html, /assets\/index-[\w-]+\.js/);
+    assert.doesNotMatch(html, /test-admin-token/);
 
     const session = await fetch(`${adminBase(ctx)}/session`);
     assert.equal(session.status, 200);
@@ -116,7 +114,8 @@ describe('管理员认证与权限边界', () => {
     assert.match(res.headers.get('content-type') ?? '', /text\/html/);
     const html = await res.text();
     assert.match(html, /Content-Security-Policy/);
-    assert.match(html, /nonce=/);
+    assert.match(html, /script-src 'self'/);
+    assert.doesNotMatch(html, /nonce=/);
     assert.doesNotMatch(html, /test-admin-token/);
   });
 });

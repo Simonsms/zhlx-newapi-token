@@ -15,7 +15,7 @@ import type { Metrics } from './metrics.ts';
 import type { Store } from './store/store.ts';
 import type { AssociationStatus } from './store/types.ts';
 import { isClassificationLabel } from './classifier.ts';
-import { renderAdminPage } from './ui.ts';
+import type { StaticAssets } from './static.ts';
 
 export interface AdminDeps {
   config: Config;
@@ -23,12 +23,13 @@ export interface AdminDeps {
   auth: AdminAuth;
   metrics: Metrics;
   logger: Logger;
+  assets: StaticAssets;
 }
 
 const ALLOWED_STATUSES = new Set<AssociationStatus>(['matched', 'pending', 'unmatched', 'no_gateway_id']);
 
 export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res: ServerResponse) => void {
-  const { config, store, auth, metrics, logger } = deps;
+  const { config, store, auth, metrics, logger, assets } = deps;
 
   return (req, res) => {
     const url = new URL(req.url ?? '/', 'http://internal');
@@ -51,16 +52,24 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
     const method = req.method ?? 'GET';
     const base = config.adminPath;
 
-    if (path === base || path === `${base}/`) {
+    if (path === base) {
       if (method !== 'GET') {
         sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
         return;
       }
-      sendText(res, 200, renderAdminPage(), 'text/html; charset=utf-8', {
-        'x-content-type-options': 'nosniff',
-        'x-frame-options': 'DENY',
-        'referrer-policy': 'no-referrer',
-      });
+      // 构建产物使用相对路径，必须带尾斜杠才能正确解析 assets/。
+      sendText(res, 301, '', 'text/plain; charset=utf-8', { location: `${base}/` });
+      return;
+    }
+
+    if (path === `${base}/`) {
+      if (method !== 'GET') {
+        sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
+        return;
+      }
+      if (!assets.handle(req, res, '/')) {
+        sendText(res, 503, '管理界面不可用', 'text/plain; charset=utf-8');
+      }
       return;
     }
 
@@ -119,6 +128,13 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         captured_enabled: config.captureEnabled,
         deployment_id: config.deploymentId,
       });
+      return;
+    }
+
+    const relative = path.slice(base.length + 1);
+    if (path.startsWith(`${base}/`) && !relative.startsWith('api/') && !['login', 'logout', 'session'].includes(relative)) {
+      if (assets.handle(req, res, relative)) return;
+      sendJson(res, 404, { error: 'not_found' });
       return;
     }
 
@@ -261,6 +277,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         model: model && model.length > 0 ? model : null,
         status,
         label,
+        review: url.searchParams.get('review') === '1' ? true : null,
         query: query && query.length > 0 ? query.slice(0, 200) : null,
         page,
         pageSize,

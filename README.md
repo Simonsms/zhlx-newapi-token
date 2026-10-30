@@ -9,11 +9,23 @@ New API 前置采集代理、原生日志用量同步与管理员查询服务。
 - **全量用量同步**：从 New API 管理员日志接口或只读 SQLite 日志库增量同步消费/错误/退款事件，与是否采集到正文无关。
 - **请求关联**：用 `X-Oneapi-Request-Id` 与原生日志 `request_id` 在同一部署内关联；本地请求 ID 区分并发请求。
 - **人员归属口径可切换**：`IDENTITY_MODE=user` 适合一人一账号，`token` 适合共享账号按 Key 区分，`auto` 依据数据自动判定。
-- **管理员查询**：日期/账号/凭证/模型/场景筛选、用量汇总与分组、采集质量、关联状态、单请求下钻；正文读取写审计。
+- **管理员查询**：独立的管理前端（React + TypeScript + Vite），分为概览、请求检索、场景分析、数据质量四个视图；支持日期/账号/凭证/模型/场景筛选、用量汇总与分组、采集质量、关联状态、单请求侧栏下钻；正文读取写审计。
 - **二期场景分类**：离线批量打标（keyword 规则或 LLM），固定六类标签，保存分类器版本、置信度与待复核标记，展示覆盖率与分布。
 - **双数据库**：SQLite（本地试用）或 PostgreSQL（生产推荐）。
 
 验收对照见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。目标服务器实测结果与部署方案见 [docs/DEPLOY.md](docs/DEPLOY.md)。
+
+## 管理前端
+
+管理界面源码在 `web/`，使用 React + TypeScript + Vite，构建产物由 Node 服务在 `ADMIN_PATH`（默认 `/_zhlx/admin/`）下托管。
+
+```bash
+npm --prefix web install     # 首次
+npm run build:web            # 构建到 web/dist
+npm start                    # 由服务托管
+```
+
+开发时可在 `web/` 下 `npm run dev`，并把 API 请求指向运行中的服务。未构建产物时，管理路径返回 503 并提示构建命令，不会静默 404。
 
 ## 快速开始（SQLite）
 
