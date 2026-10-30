@@ -14,6 +14,7 @@ import type { Logger } from './logger.ts';
 import type { Metrics } from './metrics.ts';
 import type { Store } from './store/store.ts';
 import type { AssociationStatus } from './store/types.ts';
+import { isClassificationLabel } from './classifier.ts';
 import { renderAdminPage } from './ui.ts';
 
 export interface AdminDeps {
@@ -241,6 +242,15 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
       const tokenIdRaw = url.searchParams.get('token_id');
       const model = url.searchParams.get('model');
       const query = url.searchParams.get('q');
+      const labelRaw = url.searchParams.get('label');
+      let label: string | null = null;
+      if (labelRaw) {
+        if (!isClassificationLabel(labelRaw)) {
+          sendJson(res, 400, { error: 'invalid_label' });
+          return;
+        }
+        label = labelRaw;
+      }
       const page = parseInteger(url.searchParams.get('page'), 1, 1, 100_000);
       const pageSize = parseInteger(url.searchParams.get('page_size'), 25, 1, 100);
       const filter = {
@@ -250,6 +260,7 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         tokenId: parseOptionalId(tokenIdRaw),
         model: model && model.length > 0 ? model : null,
         status,
+        label,
         query: query && query.length > 0 ? query.slice(0, 200) : null,
         page,
         pageSize,
@@ -312,6 +323,24 @@ export function createAdminHandler(deps: AdminDeps): (req: IncomingMessage, res:
         outcomes,
         request_bytes: bytes,
         extraction_versions: versions,
+      });
+      return;
+    }
+
+    if (path === `${base}/api/classification`) {
+      const range = parseIsoRange(url);
+      if (!range.ok) {
+        sendJson(res, 400, { error: range.reason });
+        return;
+      }
+      const filter = { from: range.from.toISOString(), to: range.to.toISOString() };
+      const stats = await store.classificationStats(filter);
+      sendJson(res, 200, {
+        from: filter.from,
+        to: filter.to,
+        enabled: config.classifier.mode !== 'off',
+        mode: config.classifier.mode,
+        ...stats,
       });
       return;
     }

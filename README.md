@@ -9,7 +9,8 @@ New API 前置采集代理、原生日志用量同步与管理员查询服务。
 - **全量用量同步**：从 New API 管理员日志接口或只读 SQLite 日志库增量同步消费/错误/退款事件，与是否采集到正文无关。
 - **请求关联**：用 `X-Oneapi-Request-Id` 与原生日志 `request_id` 在同一部署内关联；本地请求 ID 区分并发请求。
 - **人员归属口径可切换**：`IDENTITY_MODE=user` 适合一人一账号，`token` 适合共享账号按 Key 区分，`auto` 依据数据自动判定。
-- **管理员查询**：日期/账号/凭证/模型筛选、用量汇总与分组、采集质量、关联状态、单请求下钻；正文读取写审计。
+- **管理员查询**：日期/账号/凭证/模型/场景筛选、用量汇总与分组、采集质量、关联状态、单请求下钻；正文读取写审计。
+- **二期场景分类**：离线批量打标（keyword 规则或 LLM），固定六类标签，保存分类器版本、置信度与待复核标记，展示覆盖率与分布。
 - **双数据库**：SQLite（本地试用）或 PostgreSQL（生产推荐）。
 
 验收对照见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。目标服务器实测结果与部署方案见 [docs/DEPLOY.md](docs/DEPLOY.md)。
@@ -77,6 +78,8 @@ location /v1/ {
 | `NEWAPI_SOURCE_KEY_MODE` | `composite` | 去重键策略；仅确认日志 id 稳定时才用 `id` |
 | `IDENTITY_MODE` | `auto` | 人员归属：`user` 一人一账号、`token` 共享账号按 Key、`auto` 自动判定 |
 | `ASSOCIATION_PENDING_WINDOW_MS` | 300000 | 超过该窗口仍无日志则标为 `unmatched` |
+| `CLASSIFIER_MODE` | `off` | 二期分类：`off`/`keyword`/`llm` |
+| `EXCLUDE_TOKEN_IDS` | 空 | 分类服务等专用凭证，分组统计时排除 |
 
 完整列表见 [.env.example](.env.example)。
 

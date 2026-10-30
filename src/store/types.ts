@@ -12,6 +12,18 @@ export type UsageSource = 'reported' | 'estimated' | 'missing';
 
 export type AssociationStatus = 'matched' | 'pending' | 'unmatched' | 'no_gateway_id';
 
+export type ClassificationStatus = 'unclassified' | 'classified' | 'failed';
+
+export interface ClassificationInfo {
+  classification_status: ClassificationStatus;
+  classification_label: string | null;
+  classifier_version: string | null;
+  classification_confidence: number | null;
+  classification_review: number;
+  classification_attempts: number;
+  classified_at: string | null;
+}
+
 export type BodyOutcome = 'text' | 'excerpt' | 'metadata' | 'limit' | 'failure' | 'disabled' | 'dropped' | 'expired';
 
 export interface ContentSummaryView {
@@ -69,7 +81,7 @@ export interface UsageEventInsert {
   synced_at: string;
 }
 
-export interface ProxyRequestRecord extends Omit<ProxyRequestInsert, 'content_summary' | 'request_bytes' | 'request_bytes_complete'> {
+export interface ProxyRequestRecord extends Omit<ProxyRequestInsert, 'content_summary' | 'request_bytes' | 'request_bytes_complete'>, ClassificationInfo {
   request_bytes: number | null;
   request_bytes_complete: number | null;
   content_summary: ContentSummaryView | null;
@@ -105,6 +117,7 @@ export interface ProxyRequestFilter {
   tokenId?: number | null;
   model?: string | null;
   status?: AssociationStatus | null;
+  label?: string | null;
   query?: string | null;
   page: number;
   pageSize: number;
@@ -167,6 +180,17 @@ export interface BodyOutcomeCounts {
   disabled: number;
   dropped: number;
   expired: number;
+}
+
+export interface ClassificationStats {
+  with_prompt: number;
+  classified: number;
+  unclassified: number;
+  failed: number;
+  review: number;
+  coverage: number;
+  labels: Array<{ label: string; count: number }>;
+  versions: Array<{ version: string; count: number }>;
 }
 
 export interface AssociationCounts {

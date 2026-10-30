@@ -44,7 +44,22 @@ export interface Config {
   identityMode: 'auto' | 'user' | 'token';
   adminPath: string;
   healthPath: string;
+  excludedTokenIds: Set<number>;
+  classifier: ClassifierConfig;
   newapi: NewApiConfig;
+}
+
+export interface ClassifierConfig {
+  mode: 'off' | 'keyword' | 'llm';
+  intervalMs: number;
+  batchSize: number;
+  maxAttempts: number;
+  retryMs: number;
+  reviewThreshold: number;
+  llmBaseUrl: URL | null;
+  llmToken: string | null;
+  llmModel: string | null;
+  llmTimeoutMs: number;
 }
 
 export class ConfigError extends Error {
@@ -117,6 +132,45 @@ function readPath(env: NodeJS.ProcessEnv, name: string, fallback: string): strin
   return value;
 }
 
+function readClassifierConfig(env: NodeJS.ProcessEnv, upstreamUrl: URL): ClassifierConfig {
+  const modeRaw = readString(env, 'CLASSIFIER_MODE', 'off').toLowerCase();
+  if (modeRaw !== 'off' && modeRaw !== 'keyword' && modeRaw !== 'llm') {
+    throw new ConfigError('CLASSIFIER_MODE', '必须是 off/keyword/llm');
+  }
+  const llmBaseUrl = readOptional(env, 'CLASSIFIER_LLM_BASE_URL');
+  const llmToken = readOptional(env, 'CLASSIFIER_LLM_TOKEN');
+  const llmModel = readOptional(env, 'CLASSIFIER_LLM_MODEL');
+  if (modeRaw === 'llm' && (!llmToken || !llmModel)) {
+    throw new ConfigError('CLASSIFIER_MODE', 'llm 模式必须设置 CLASSIFIER_LLM_TOKEN 和 CLASSIFIER_LLM_MODEL');
+  }
+  return {
+    mode: modeRaw,
+    intervalMs: readInt(env, 'CLASSIFIER_INTERVAL_MS', 300_000, 10_000),
+    batchSize: readInt(env, 'CLASSIFIER_BATCH_SIZE', 50, 1),
+    maxAttempts: readInt(env, 'CLASSIFIER_MAX_ATTEMPTS', 5, 1),
+    retryMs: readInt(env, 'CLASSIFIER_RETRY_MS', 600_000, 10_000),
+    reviewThreshold: readInt(env, 'CLASSIFIER_REVIEW_THRESHOLD', 60, 0),
+    llmBaseUrl: llmBaseUrl ? readUrl(env, 'CLASSIFIER_LLM_BASE_URL', llmBaseUrl) : upstreamUrl,
+    llmToken,
+    llmModel,
+    llmTimeoutMs: readInt(env, 'CLASSIFIER_LLM_TIMEOUT_MS', 30_000, 1000),
+  };
+}
+
+function readExcludedTokenIds(env: NodeJS.ProcessEnv): Set<number> {
+  const raw = readString(env, 'EXCLUDE_TOKEN_IDS', '');
+  const ids = new Set<number>();
+  for (const part of raw.split(',')) {
+    const value = part.trim();
+    if (!value) continue;
+    if (!/^\d+$/.test(value)) {
+      throw new ConfigError('EXCLUDE_TOKEN_IDS', `不是数字：${value.slice(0, 20)}`);
+    }
+    ids.add(Number(value));
+  }
+  return ids;
+}
+
 export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
   const adminToken = readOptional(env, 'ADMIN_API_TOKEN');
   const sessionSecret = readOptional(env, 'SESSION_SECRET') ??
@@ -146,13 +200,14 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   const databaseUrl = readString(env, 'DATABASE_URL', 'file:./data/zhlx.db');
+  const upstreamUrl = readUrl(env, 'UPSTREAM_URL', 'http://127.0.0.1:3000');
 
   return {
     port: readInt(env, 'PORT', 8080, 0),
     host: readString(env, 'HOST', '0.0.0.0'),
     deploymentId: readString(env, 'DEPLOYMENT_ID', 'local'),
     logLevel: readLogLevel(env),
-    upstreamUrl: readUrl(env, 'UPSTREAM_URL', 'http://127.0.0.1:3000'),
+    upstreamUrl,
     upstreamIdleTimeoutMs: readInt(env, 'UPSTREAM_IDLE_TIMEOUT_MS', 0, 0),
     databaseUrl,
     adminToken,
@@ -175,6 +230,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): Config {
     identityMode: readIdentityMode(env),
     adminPath: readPath(env, 'ADMIN_PATH', '/_zhlx/admin'),
     healthPath: readPath(env, 'HEALTH_PATH', '/_zhlx/healthz'),
+    excludedTokenIds: readExcludedTokenIds(env),
+    classifier: readClassifierConfig(env, upstreamUrl),
     newapi: {
       enabled: newapiEnabled,
       baseUrl: newapiBaseUrl ? readUrl(env, 'NEWAPI_BASE_URL', newapiBaseUrl) : null,

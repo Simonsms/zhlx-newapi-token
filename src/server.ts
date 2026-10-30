@@ -2,6 +2,8 @@ import http from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { createAdminHandler } from './admin.ts';
+import { KeywordClassifier, LlmClassifier, type Classifier } from './classifier.ts';
+import { ClassificationRunner } from './classify-runner.ts';
 import { configFromEnv, type Config } from './config.ts';
 import { createProxyHandler } from './proxy.ts';
 import { AdminAuth, sendJson } from './http-helpers.ts';
@@ -22,6 +24,7 @@ export interface App {
   metrics: Metrics;
   writer: ProxyWriter;
   sync: LogSync;
+  classifyRunner: ClassificationRunner;
   logger: Logger;
   close(): Promise<void>;
 }
@@ -33,8 +36,23 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
   const metrics = createMetrics();
   const db = await openDatabase(config.databaseUrl);
   const store = new Store(db, config.deploymentId);
+  store.excludedTokenIds = config.excludedTokenIds;
   const writer = new ProxyWriter(store, config, metrics, logger);
   const auth = new AdminAuth(config);
+
+  let classifier: Classifier | null = null;
+  if (config.classifier.mode === 'keyword') {
+    classifier = new KeywordClassifier();
+  } else if (config.classifier.mode === 'llm' && config.classifier.llmBaseUrl && config.classifier.llmToken && config.classifier.llmModel) {
+    classifier = new LlmClassifier({
+      baseUrl: config.classifier.llmBaseUrl,
+      token: config.classifier.llmToken,
+      model: config.classifier.llmModel,
+      timeoutMs: config.classifier.llmTimeoutMs,
+      reviewThreshold: config.classifier.reviewThreshold,
+    });
+  }
+  const classifyRunner = new ClassificationRunner(store, classifier, config, metrics, logger);
 
   let client: LogSource | null = null;
   if (config.newapi.enabled) {
@@ -88,6 +106,7 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
 
   writer.start();
   sync.start();
+  classifyRunner.start();
 
   const cleanup = async (): Promise<void> => {
     if (CLEANUP_LOCK.current) return CLEANUP_LOCK.current;
@@ -120,10 +139,12 @@ export async function createApp(config: Config = configFromEnv()): Promise<App> 
     metrics,
     writer,
     sync,
+    classifyRunner,
     logger,
     async close() {
       if (cleanupTimer) clearInterval(cleanupTimer);
       sync.stop();
+      classifyRunner.stop();
       const forceClose = setTimeout(() => {
         server.closeAllConnections();
       }, 10_000);

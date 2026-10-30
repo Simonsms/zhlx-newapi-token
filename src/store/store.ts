@@ -5,6 +5,7 @@ import type {
   BodyOutcomeCounts,
   BreakdownRow,
   CaptureStats,
+  ClassificationStats,
   ContentSummaryView,
   IdentityStats,
   ProxyRequestFilter,
@@ -83,6 +84,13 @@ function mapProxyRow(row: Row): ProxyRequestRecord {
     request_bytes: numOrNull(row.request_bytes),
     request_bytes_complete: numOrNull(row.request_bytes_complete),
     content_summary: parseContentSummary(row.content_summary),
+    classification_status: (row.classification_status ?? 'unclassified') as ProxyRequestRecord['classification_status'],
+    classification_label: strOrNull(row.classification_label),
+    classifier_version: strOrNull(row.classifier_version),
+    classification_confidence: numOrNull(row.classification_confidence),
+    classification_review: num(row.classification_review),
+    classification_attempts: num(row.classification_attempts),
+    classified_at: strOrNull(row.classified_at),
     usage_event_count: num(row.usage_event_count),
     prompt_tokens: numOrNull(row.prompt_tokens),
     completion_tokens: numOrNull(row.completion_tokens),
@@ -164,6 +172,8 @@ function placeholders(columns: readonly string[], startAt = 1): string {
 export class Store {
   readonly db: Db;
   readonly deploymentId: string;
+  /** 按人员/凭证分组时排除的凭证 ID（如分类服务专用 Key）；总量统计不受影响。 */
+  excludedTokenIds = new Set<number>();
 
   constructor(db: Db, deploymentId: string) {
     this.db = db;
@@ -288,6 +298,10 @@ export class Store {
     if (filter.query) {
       params.push(`%${filter.query}%`);
       where.push(`LOWER(p.prompt_text) LIKE LOWER($${params.length})`);
+    }
+    if (filter.label) {
+      params.push(filter.label);
+      where.push(`p.classification_label = $${params.length}`);
     }
     params.push(pendingCutoff);
     const pendingParam = `$${params.length}`;
@@ -433,6 +447,14 @@ export class Store {
     limit = 30,
   ): Promise<BreakdownRow[]> {
     const { where, params } = this.usageWhere(filter);
+    // 按人员/凭证分组时排除服务凭证（如分类专用 Key），避免混入员工统计。
+    const extra: string[] = [];
+    if (this.excludedTokenIds.size > 0 && (groupBy === 'user' || groupBy === 'token')) {
+      const ids = [...this.excludedTokenIds];
+      for (const id of ids) params.push(id);
+      const start = params.length - ids.length + 1;
+      extra.push(`u.token_id NOT IN (${ids.map((_id, i) => `$${start + i}`).join(', ')})`);
+    }
     let bucket: string;
     let group: string;
     if (groupBy === 'day') {
@@ -457,7 +479,7 @@ export class Store {
         COALESCE(SUM(CASE WHEN u.log_type = 2 THEN u.completion_tokens ELSE 0 END), 0) AS completion_tokens,
         COALESCE(SUM(CASE WHEN u.log_type = 2 THEN u.quota ELSE 0 END), 0) AS quota
        FROM usage_event u
-       WHERE ${where}
+       WHERE ${extra.length ? `${where} AND ${extra.join(' AND ')}` : where}
        GROUP BY ${group}
        ORDER BY ${groupBy === 'day' ? 'bucket_id ASC' : 'prompt_tokens DESC'}
        LIMIT $${params.length}`,
@@ -577,6 +599,113 @@ export class Store {
       [this.deploymentId, filter.from, filter.to],
     );
     return rows.map((row) => ({ version: String(row.version), count: num(row.count) }));
+  }
+
+  async fetchClassifyBatch(
+    limit: number,
+    retryBefore: string,
+    maxAttempts: number,
+  ): Promise<Array<{ proxy_request_id: string; prompt_text: string }>> {
+    const rows = await this.db.query<Row>(
+      `SELECT proxy_request_id, prompt_text FROM proxy_request
+       WHERE deployment_id = $1 AND prompt_text IS NOT NULL
+         AND (
+           (classification_status = 'unclassified')
+           OR (classification_status = 'failed' AND classification_attempts < $2 AND classified_at < $3)
+         )
+       ORDER BY received_at ASC
+       LIMIT $4`,
+      [this.deploymentId, maxAttempts, retryBefore, limit],
+    );
+    return rows.map((row) => ({
+      proxy_request_id: String(row.proxy_request_id),
+      prompt_text: String(row.prompt_text),
+    }));
+  }
+
+  async updateClassification(
+    proxyRequestId: string,
+    info: {
+      status: 'classified' | 'failed';
+      label: string | null;
+      version: string | null;
+      confidence: number | null;
+      review: boolean;
+      attempts: number;
+      classifiedAt: string;
+    },
+  ): Promise<void> {
+    await this.db.execute(
+      `UPDATE proxy_request SET
+        classification_status = $2,
+        classification_label = $3,
+        classifier_version = $4,
+        classification_confidence = $5,
+        classification_review = $6,
+        classification_attempts = $7,
+        classified_at = $8
+       WHERE deployment_id = $1 AND proxy_request_id = $9`,
+      [
+        this.deploymentId,
+        info.status,
+        info.label,
+        info.version,
+        info.confidence,
+        info.review ? 1 : 0,
+        info.attempts,
+        info.classifiedAt,
+        proxyRequestId,
+      ],
+    );
+  }
+
+  /**
+   * 分类统计。分母是区间内有正文的请求；未分类/失败/待复核单独计数，
+   * 覆盖率 = 已分类 / 有正文。
+   */
+  async classificationStats(filter: UsageFilter): Promise<ClassificationStats> {
+    const rows = await this.db.query<Row>(
+      `SELECT
+        COALESCE(SUM(CASE WHEN prompt_text IS NOT NULL THEN 1 ELSE 0 END), 0) AS with_prompt,
+        COALESCE(SUM(CASE WHEN prompt_text IS NOT NULL AND classification_status = 'classified' THEN 1 ELSE 0 END), 0) AS classified,
+        COALESCE(SUM(CASE WHEN prompt_text IS NOT NULL AND classification_status = 'unclassified' THEN 1 ELSE 0 END), 0) AS unclassified,
+        COALESCE(SUM(CASE WHEN prompt_text IS NOT NULL AND classification_status = 'failed' THEN 1 ELSE 0 END), 0) AS failed,
+        COALESCE(SUM(CASE WHEN classification_review = 1 THEN 1 ELSE 0 END), 0) AS review
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    const row = rows[0] ?? {};
+    const withPrompt = num(row.with_prompt);
+    const classified = num(row.classified);
+    const labelRows = await this.db.query<Row>(
+      `SELECT classification_label AS label, COUNT(*) AS count
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3
+         AND classification_status = 'classified' AND classification_label IS NOT NULL
+       GROUP BY classification_label
+       ORDER BY count DESC`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    const versionRows = await this.db.query<Row>(
+      `SELECT COALESCE(classifier_version, 'none') AS version, COUNT(*) AS count
+       FROM proxy_request
+       WHERE deployment_id = $1 AND received_at >= $2 AND received_at < $3
+         AND classification_status = 'classified'
+       GROUP BY COALESCE(classifier_version, 'none')
+       ORDER BY count DESC`,
+      [this.deploymentId, filter.from, filter.to],
+    );
+    return {
+      with_prompt: withPrompt,
+      classified,
+      unclassified: num(row.unclassified),
+      failed: num(row.failed),
+      review: num(row.review),
+      coverage: withPrompt > 0 ? Math.round((classified / withPrompt) * 1000) / 10 : 0,
+      labels: labelRows.map((r) => ({ label: String(r.label), count: num(r.count) })),
+      versions: versionRows.map((r) => ({ version: String(r.version), count: num(r.count) })),
+    };
   }
 
   async associationCounts(

@@ -85,6 +85,20 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE proxy_request ADD COLUMN content_summary TEXT`,
     ],
   },
+  {
+    version: 3,
+    statements: [
+      // 二期离线分类：只处理有正文的记录；unclassified 为待分类初始态。
+      `ALTER TABLE proxy_request ADD COLUMN classification_status TEXT NOT NULL DEFAULT 'unclassified'`,
+      `ALTER TABLE proxy_request ADD COLUMN classification_label TEXT`,
+      `ALTER TABLE proxy_request ADD COLUMN classifier_version TEXT`,
+      `ALTER TABLE proxy_request ADD COLUMN classification_confidence INTEGER`,
+      `ALTER TABLE proxy_request ADD COLUMN classification_review INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE proxy_request ADD COLUMN classification_attempts INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE proxy_request ADD COLUMN classified_at TEXT`,
+      `CREATE INDEX IF NOT EXISTS idx_proxy_classify ON proxy_request (deployment_id, classification_status, received_at)`,
+    ],
+  },
 ];
 
 export async function migrate(db: Db): Promise<void> {
